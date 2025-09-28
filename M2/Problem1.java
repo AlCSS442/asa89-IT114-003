@@ -16,6 +16,7 @@ public class Problem1 extends BaseClass {
         // Step 3: Add code to solve the problem (add/commit as needed)
         System.out.print("Output Array: ");
         // Start Solution Edits
+        //ass89 09-28-2025
        /* I need an array thats able to grow in size--> will use ArrayList
        Plan: i need to filter out the array so only odd #'s remain. I choose an 
        arraylist b/c I want it to work for any sized array example thats passed through
