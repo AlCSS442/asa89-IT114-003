@@ -17,6 +17,45 @@ public class Problem3 extends BaseClass {
         // Step 3: Add code to solve the problem (add/commit as needed)
         Object[] output = new Object[arr.length];
         // Start Solution Edits
+        //ass89 09-28-2025
+        /*
+         Noticed there are multiple data types. 
+         will need a loop to iterate through the arrays and definetly use casting
+        then I need to check the data type with instanceOf, simplest way I found I could do this
+        so for each element in the array, determine the type of the element
+        if its a number, make it postive
+        if its a string/obj representing a number, convert it to a num, make it pos, then convert it back to the orignal type
+        if its a string/obj thats not a num, leave it unchanged
+         */
+        for (int i = 0; i < arr.length; i++){
+            Object value = arr[i];
+
+            if (value instanceof Integer){
+                output[i] = Math.abs((Integer) value);
+            } else if (value instanceof Double) {
+                output[i] = Math.abs((Double) value);
+            } else if (value instanceof Float){
+                output[i] = Math.abs((Float) value);
+            } else if (value instanceof String){
+                String stringVal = (String) value;
+                try{ //will try parsing as integer first
+                    int integerVal = Integer.parseInt(stringVal);
+                    output[i] = String.valueOf(Math.abs(integerVal));
+                } catch (NumberFormatException e1){
+                    try{ //if fails, parse as possible double
+                        double doubleVal = Double.parseDouble(stringVal);
+                        output[i] = String.valueOf(Math.abs(doubleVal));
+                    } catch (NumberFormatException e2){ //if not a number, leave it
+                        output[i] = value;
+                    }
+                }
+            } else{
+                output[i] = value;
+            }
+
+            
+
+            }
         
 
         // End Solution Edits
@@ -27,7 +66,7 @@ public class Problem3 extends BaseClass {
     }
 
     public static void main(String[] args) {
-        final String ucid = "mt85"; // <-- change to your UCID
+        final String ucid = "ass89"; // <-- change to your UCID
         // no edits below this line
         printHeader(ucid, 3);
         bePositive(array1, 1);

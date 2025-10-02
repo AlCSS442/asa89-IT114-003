@@ -1,4 +1,5 @@
 package M2;
+import java.util.ArrayList;
 
 public class Problem1 extends BaseClass {
     private static int[] array1 = {0,1,2,3,4,5,6,7,8,9};   
@@ -15,6 +16,27 @@ public class Problem1 extends BaseClass {
         // Step 3: Add code to solve the problem (add/commit as needed)
         System.out.print("Output Array: ");
         // Start Solution Edits
+        //ass89 09-28-2025
+       /* I need an array thats able to grow in size--> will use ArrayList
+       Plan: i need to filter out the array so only odd #'s remain. I choose an 
+       arraylist b/c I want it to work for any sized array example thats passed through
+       So, I will loop though the array and if its odd, it will be added to the ArrayList
+       Note to self: I cant use println b/c it would print a new line per number
+       Will need a check for commas (there can't be a leading or trailing comma)
+       */
+       ArrayList<Integer> odds = new ArrayList<>();
+       for (int n : arr){
+        if (n % 2 != 0){
+            odds.add(n);
+        }
+       }
+       //need to loop through ArrayList and print them
+       for (int i = 0; i < odds.size(); i++){
+        System.out.print(odds.get(i));
+        if (i < odds.size() -1){
+            System.out.print(",");
+        }
+       }   
         
 
         // End Solution Edits
@@ -22,7 +44,7 @@ public class Problem1 extends BaseClass {
         System.out.println("______________________________________");
     }
     public static void main(String[] args) {
-        final String ucid = "mt85"; // <-- change to your UCID
+        final String ucid = "ass89"; // <-- change to your UCID
         // no edits below this line
         printHeader(ucid, 1);
         printOdds(array1,1);

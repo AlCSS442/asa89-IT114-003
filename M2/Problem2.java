@@ -21,10 +21,27 @@ public class Problem2 extends BaseClass {
         double total = 0;
         // Start Solution Edits
         // Solve Challenge 1 here
-        
+        //ass89 09-28-2025
+        /*
+        I just need to iterate and sum, wont need an ArrayList here. Bucket was already
+        declared as "total" to keep the sum. So I will just iterate through the array and add
+        them to the bucket
+         */
+        for (double n : arr){
+            total += n;
+        }        
       
         // Solve Challenge 2 here
+        /*
+         total is a double, meaning they are floating-point #'s and can have many decimal places
+         but we only want 2.
+         instructions dont mention anything about rounding vs truncating, will round to keep more precise
+         will use math.round()
+         modifiedTotal is declared as an object, will need to use formatting
+         */
+
         Object modifiedTotal = "?";
+        modifiedTotal = String.format("%.2f", Math.round(total * 100.0) / 100.00);
 
         // End Solution Edits
         System.out.println("Total Raw Value: " +total);
@@ -34,7 +51,7 @@ public class Problem2 extends BaseClass {
     }
 
     public static void main(String[] args) {
-        final String ucid = "mt85"; // <-- change to your UCID
+        final String ucid = "ass89"; // <-- change to your UCID
         // no edits below this line
         printHeader(ucid, 2);
         sumValues(array1, 1);
