@@ -74,7 +74,7 @@ public class SlashCommandHandler extends BaseClass {
                     try{
                         int numberofDice = Integer.parseInt(dice[0].trim()); //cant cast string to integer, need this method
                         int numberofSides = Integer.parseInt(dice[1].trim());
-                        if (numberofDice <= 0 || numberofSides <= 0) {
+                        if (numberofDice < 0 || numberofSides < 0) {
                             System.out.println("Numbers must be positive!");
                             continue;
                         }
