@@ -22,6 +22,7 @@ public class CommandLineCalculator extends BaseClass {
             printFooter(ucid, 1);
             return;
         }
+        //ass89, 10-5-2025
         double result = 0.0;
 
         try {
@@ -41,19 +42,19 @@ public class CommandLineCalculator extends BaseClass {
                     break;
                 default:
                     System.out.println("Unsupported operator. Use only + or -");
+                    printFooter(ucid, 1);
                     return;
             }
+            int decimals1 = args[0].contains(".") ? args[0].length() - args[0].indexOf('.') - 1 : 0;   
+            int decimals2 = args[2].contains(".") ? args[2].length() - args[2].indexOf('.') - 1 : 0; 
+            int maxDecimals = Math.max(decimals1, decimals2);
+            
+            System.out.printf("Result: %." + maxDecimals + "f\n", result);
+
         } catch (Exception e) {
             System.out.println("Invalid input. Please ensure correct format and valid numbers.");
-        }
-   //determining the max decimal places
-        
-        int decimals1 = args[0].contains(".") ? args[0].length() - args[0].indexOf('.') - 1 : 0;   
-        int decimals2 = args[2].contains(".") ? args[2].length() - args[2].indexOf('.') - 1 : 0; 
-        int maxDecimals = Math.max(decimals1, decimals2);
-        System.out.printf("Result: %." + maxDecimals + "f\n", result);
-        
-
+            return;
+        }    
         printFooter(ucid, 1);
     }
 }
