@@ -17,10 +17,10 @@ Challenge 3: Mad Libs Generator (Randomized Stories)
     - Any placeholder with underscores should display with spaces instead
 - Replace placeholders with user input (assign back to original slot in collection)
 */
-
+//ass89, 10-15-2025
 public class MadLibsGenerator extends BaseClass {
     private static final String STORIES_FOLDER = "M3/stories";
-    private static String ucid = "mt85"; // <-- change to your ucid
+    private static String ucid = "ass89"; // <-- change to your ucid
 
     public static void main(String[] args) {
         printHeader(ucid, 3,
