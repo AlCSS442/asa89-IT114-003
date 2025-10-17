@@ -1,9 +1,11 @@
 package M3;
 
 import java.io.File;
+import java.io.FileNotFoundException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Scanner;
+import java.util.Random;
 
 /*
 Challenge 3: Mad Libs Generator (Randomized Stories)
@@ -35,13 +37,46 @@ public class MadLibsGenerator extends BaseClass {
         }
         List<String> lines = new ArrayList<>();
         // Start edits
-
+        File[] files = folder.listFiles();
+        if (files == null || files.length == 0){
+            System.out.println("No story files found in the folder!");
+            return;
+        }
         // load a random story file
-
+        Random random = new Random();
         // parse the story lines
-
+        File storyFile = files[random.nextInt(files.length)];
+        System.out.println("Using story file: " + storyFile.getName());
+        System.out.println();
+        try (Scanner fileScanner = new Scanner(storyFile)){
+            while (fileScanner.hasNextLine()){
+                lines.add(fileScanner.nextLine());
+            }
+        } catch (FileNotFoundException e){
+            System.out.println("Error: Could not read the story file.");
+            return;
+        }
         // iterate through the lines
+        for (int i = 0; i < lines.size(); i++){
+            String line = lines.get(i);
+                while (line.contains("<") && line.contains(">")){
+                    int start = line.indexOf("<");
+                    int end = line.indexOf(">", start);
 
+                    String placeholder = line.substring(start + 1, end);
+
+                    String prompt = placeholder.replace("_", " ");
+
+                    System.out.println("Enter a " + prompt + ": ");
+                    String userWord = scanner.nextLine();
+                    line = line.substring(0,start) + userWord + line.substring(end + 1);
+                }
+                lines.set(i, line);
+        }
+        System.out.println("\nYour completed story:\n");
+        for (String line : lines){
+            System.out.println(line);
+        }
         // prompt the user for each placeholder (note: there may be more than one
         // placeholder in a line)
 
