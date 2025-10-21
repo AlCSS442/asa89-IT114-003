@@ -130,7 +130,13 @@ public class Server {
     protected synchronized void handleMessage(ServerThread sender, String text) {
         relay(sender, text);
     }
-    // end handle actions
+    // ass89, 10-21-2025
+    //end handle actions
+    public void handleFlip(ServerThread client){
+        String result = Math.random() < 0.5 ? "heads" : "tails";
+        String message = "User[" + client.getClientId() + "] flipped a coin and got " + result + ".";
+        relay(null, message);
+    }
 
     public static void main(String[] args) {
         System.out.println("Server Starting");
@@ -145,5 +151,6 @@ public class Server {
         server.start(port);
         System.out.println("Server Stopped");
     }
+    
 
 }

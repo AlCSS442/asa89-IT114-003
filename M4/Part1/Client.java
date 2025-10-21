@@ -102,7 +102,6 @@ public class Client {
         } else if ("/quit".equalsIgnoreCase(text)) {
             isRunning = false;
             return true;
-        }
         return false;
     }
 
