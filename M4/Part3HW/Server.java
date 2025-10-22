@@ -4,9 +4,12 @@ import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.ArrayList;
+import java.util.List;
 
 public class Server {
     private int port = 3000;
+    private final List<ServerThread> clients = new ArrayList<>();
     // connected clients
     // Use ConcurrentHashMap for thread-safe client management
     // the Long will be a unique client identifier, and ServerThread is the instance
@@ -130,12 +133,48 @@ public class Server {
     protected synchronized void handleMessage(ServerThread sender, String text) {
         relay(sender, text);
     }
+
     // ass89, 10-21-2025
-    //end handle actions
-    public void handleFlip(ServerThread client){
+    // end handle actions
+    public void handleFlip(ServerThread client) {
         String result = Math.random() < 0.5 ? "heads" : "tails";
         String message = "User[" + client.getClientId() + "] flipped a coin and got " + result + ".";
         relay(null, message);
+    }
+    private ServerThread getClientById(long clientId){
+        return connectedClients.get(clientId);
+    }
+    public void handlePrivateMessage(ServerThread sender, String targetIdStr, String privateMessage) {
+        if (targetIdStr == null || privateMessage == null) {
+            sender.sendToClient("Server: Invalid /pm format. Use /pm <target id> <message>");
+            return;
+        }
+
+        try {
+            long targetId = Long.parseLong(targetIdStr);
+            ServerThread target = getClientById(targetId);
+            if (target != null) {
+                String formattedMessage = "Private from " + sender.getClientId() + ": " + privateMessage;
+                target.sendToClient(formattedMessage);
+            } else {
+                sender.sendToClient("Server: Invalid target ID. Must be a number or existing client ID.");
+            }
+        } catch (NumberFormatException e) {
+            sender.sendToClient("Server: Invalid target ID. Must be a number.");
+        }
+    }
+    //ass89, 10-21-2025
+    protected synchronized void handleShuffle(ServerThread sender, String message){
+        char[] chars = message.toCharArray();
+        for (int i = chars.length -1; i > 0; i--){
+            int j = (int)(Math.random() * (i+1));
+            char temp = chars[i];
+            chars[i] = chars[j];
+            chars[j] = temp;
+        }
+        String shuffled = new String(chars);
+        String finalMessage = String.format("Server: Shuffled from %s: %s", sender.getClientId(), shuffled);
+        connectedClients.values().forEach(client -> client.sendToClient(finalMessage));
     }
 
     public static void main(String[] args) {
@@ -151,6 +190,5 @@ public class Server {
         server.start(port);
         System.out.println("Server Stopped");
     }
-    
 
 }

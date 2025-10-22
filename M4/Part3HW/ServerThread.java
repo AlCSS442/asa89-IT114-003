@@ -201,11 +201,30 @@ public class ServerThread extends Thread {
                         server.handleReverseText(this, relevantText);
                         wasCommand = true;
                         break;
-                    //ass89, 10-21-2025
+                    // ass89, 10-21-2025
                     case "flip":
                         server.handleFlip(this);
                         wasCommand = true;
                         break;
+                    case "pm":
+                        if (commandData.length >= 4) {
+                            String targetIdStr = commandData[2].trim();
+                            String privateMessage = String.join(" ",
+                                    Arrays.copyOfRange(commandData, 3, commandData.length));
+                            server.handlePrivateMessage(this, targetIdStr, privateMessage);
+                        } else {
+                            server.handlePrivateMessage(this, null, null); // will handle invalid format on server side
+                        }
+                        wasCommand = true;
+                        break;
+                    case "shuffle":
+                        if (commandData.length >= 3){
+                            String textToShuffle = String.join(" ", Arrays.copyOfRange(commandData, 2, commandData.length));
+                            server.handleShuffle(this, textToShuffle);
+                            wasCommand = true;
+                        }
+                        break;
+
                     // added more cases/breaks as needed for other commands
                     default:
                         break;

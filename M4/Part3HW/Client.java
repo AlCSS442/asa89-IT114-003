@@ -127,7 +127,25 @@ public class Client {
             String[] commandData = { Constants.COMMAND_TRIGGER, "reverse", text };
             sendToServer(String.join(",", commandData));
             wasCommand = true;
+        //ass89, 10-21-2025, challenge 2
+        }else if (text.startsWith("/pm")){
+            String[] parts = text.split(" ", 3);
+            if (parts.length < 3){
+                System.out.println("Incorrect usage. Usage: /pm <target id> <message>");
+            }
+            String targetId = parts[1];
+            String message = parts[2];
+            String[] commandData = { Constants.COMMAND_TRIGGER, "pm", targetId, message };
+            sendToServer(String.join(",", commandData));
+            wasCommand = true;
+        } else if (text.startsWith("/shuffle")){
+            text = text.replace("/shuffle", "").trim();
+            String[] commandData = { Constants.COMMAND_TRIGGER, "shuffle", text};
+            sendToServer(String.join(",", commandData));
+            wasCommand = true;
+        
         }
+        
         return wasCommand;
     }
 
