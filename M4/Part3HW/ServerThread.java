@@ -217,6 +217,7 @@ public class ServerThread extends Thread {
                         }
                         wasCommand = true;
                         break;
+                    //ass89, 10-21-2025
                     case "shuffle":
                         if (commandData.length >= 3){
                             String textToShuffle = String.join(" ", Arrays.copyOfRange(commandData, 2, commandData.length));
