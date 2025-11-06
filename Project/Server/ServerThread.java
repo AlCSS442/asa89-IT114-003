@@ -3,13 +3,19 @@ package Project.Server;
 import java.net.Socket;
 import java.util.Objects;
 import java.util.function.Consumer;
+
+import Project.Exceptions.CustomIT114Exception;
+import Project.Exceptions.DuplicateRoomException;
+import Project.Exceptions.RoomNotFoundException;
+import Project.Common.User;
+import Project.Common.TextFX;
 import Project.Common.TextFX.Color;
-import Project.Common.ConnectionPayload;
-import Project.Common.Payload;
-import Project.Common.PayloadType;
 import Project.Common.RoomAction;
-import Project.Server.Server.BaseServerThread;
-import Project.Server.Server.Room;
+import Project.Common.PayloadType;
+import Project.Common.Payload;
+import Project.Common.Constants;
+import Project.Common.ConnectionPayload;
+import Project.Common.Command;
 
 /**
  * A server-side representation of a single client

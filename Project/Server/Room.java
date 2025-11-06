@@ -1,10 +1,22 @@
 package Project.Server;
 
+import Project.Exceptions.CustomIT114Exception;
+import Project.Exceptions.DuplicateRoomException;
+import Project.Exceptions.RoomNotFoundException;
+import Project.Common.User;
+import Project.Common.TextFX;
+import Project.Common.TextFX.Color;
+import Project.Common.RoomAction;
+import Project.Common.PayloadType;
+import Project.Common.Payload;
+import Project.Common.Constants;
+import Project.Common.ConnectionPayload;
+import Project.Common.Command;
+
+
 import java.util.concurrent.ConcurrentHashMap;
 
-import Project.Common.TextFX.Color;
-import Project.Common.Constants;
-import Project.Exceptions.DuplicateRoomException;
+
 
 public class Room implements AutoCloseable {
     private final String name;// unique name of the Room
