@@ -34,4 +34,9 @@ config.*
 *.log*
 .DS_Store
 .vscode
+<<<<<<< HEAD
 .idea
+.gitbackup
+=======
+.idea
+>>>>>>> 3747fb99eb82f4d1768f373e2c7ed16539a7a333

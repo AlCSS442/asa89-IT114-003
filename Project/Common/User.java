@@ -1,0 +1,56 @@
+package Project.Common;
+
+import Project.Exceptions.CustomIT114Exception;
+import Project.Exceptions.DuplicateRoomException;
+import Project.Exceptions.RoomNotFoundException;
+import Project.Common.User;
+import Project.Common.TextFX;
+import Project.Common.RoomAction;
+import Project.Common.PayloadType;
+import Project.Common.Payload;
+import Project.Common.Constants;
+import Project.Common.ConnectionPayload;
+import Project.Common.Command;
+
+
+public class User {
+    private long clientId = Constants.DEFAULT_CLIENT_ID;
+    private String clientName;
+
+    /**
+     * @return the clientId
+     */
+    public long getClientId() {
+        return clientId;
+    }
+
+    /**
+     * @param clientId the clientId to set
+     */
+    public void setClientId(long clientId) {
+        this.clientId = clientId;
+    }
+
+    /**
+     * @return the username
+     */
+    public String getClientName() {
+        return clientName;
+    }
+
+    /**
+     * @param username the username to set
+     */
+    public void setClientName(String username) {
+        this.clientName = username;
+    }
+
+    public String getDisplayName() {
+        return String.format("%s#%s", this.clientName, this.clientId);
+    }
+
+    public void reset() {
+        this.clientId = Constants.DEFAULT_CLIENT_ID;
+        this.clientName = null;
+    }
+}
