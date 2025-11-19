@@ -1,3 +1,5 @@
+package Project.Server;
+
 public abstract class Payload {
     protected String clientId;
     protected String type;

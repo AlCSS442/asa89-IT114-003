@@ -12,14 +12,17 @@
  *  rounds
  */
 
-import java.io.*;
+package Project.Server;
+
+ import java.io.*;
 import java.util.*;
 import java.nio.file.*;
 
 import Project.Server.Room;
 import Project.Server.ServerThread;
 import Project.Server.Player;
-import Project.Server.Payloads.*;
+import Project.Server.Payload;
+
 
 public class GameRoom extends Room {
 
@@ -60,7 +63,8 @@ public class GameRoom extends Room {
         }
     }
 
-    @Override
+
+
     public void onSessionStart() {
         System.out.println("[GameRoom] Session is now starting...");
 
@@ -70,7 +74,7 @@ public class GameRoom extends Room {
         roundsPlayed = 0;
         currentTurnIndex = random.nextInt(players.size());
 
-        broadcast(new MessagePayload("server", "A new session has started, buckle up!"));
+        relay(null, "Buckle up, the session is starting!");
         onRoundStart();
     }
 
@@ -91,26 +95,25 @@ public class GameRoom extends Room {
         for (Player player : players) {
             player.setStrikes(0);
         }
-
-        broadcast(new MessagePayload("server", "Round " + roundsPlayed + " has started! New word has been selected!"));
-        broadcast(new MessagePayload("server", "Word: " + getBlanksDisplay()));
+        relay(null, "Round " + roundsPlayed + " has started! New word has been selected!");
+        relay(null, "Word: " + getBlanksDisplay());
 
         onTurnStart();
     }
 
-    @Override
+
     public void onTurnStart() {
         if (players.isEmpty()) {
             return;
         }
         Player current = players.get(currentTurnIndex);
-        broadcast(new MessagePayload("server", "It's now " + current.getClientName() + "'s turn to play!"));
+        relay(null, "It's now " + current.getClientName() + "'s turn to play!");
     }
 
     // processing the commands now
     public void processCommand(Player player, String cmd, String arg) {
         if (players.get(currentTurnIndex) != player) {
-            broadcast(new MessagePayload("server", player.getClientName() + " tried acting out of turn!"));
+            relay(null, player.getClientName() + " tried acting out of turn!");
             return;
         }
         switch (cmd) {
@@ -129,7 +132,7 @@ public class GameRoom extends Room {
     private void handleLetter(Player player, char c) {
         c = Character.toLowerCase(c);
         if (guessedLetters.contains(c)) {
-            broadcast(new MessagePayload("server", player.getClientName() + " guessed a duplicate letter!"));
+            relay(null, player.getClientName() + " guessed a duplicate letter!");
             onTurnEnd();
             return;
         }
@@ -144,11 +147,9 @@ public class GameRoom extends Room {
         if (hits > 0) {
             int points = hits;
             player.addPoints(points);
-
-            broadcast(new PointsPayload(player.getClientId(), player.getPoints()));
-            broadcast(new MessagePayload("server", player.getClientName() + " found " + hits + " '" + c + "'"
-                    + " 'and earned " + points + " points!"));
-            broadcast(new MessagePayload("server", "Word: " + getBlanksDisplay()));
+            relay(null, player.getClientName() + " found " + hits + " '" + c + "'"
+                    + " 'and earned " + points + " points!");
+            relay(null, "Word: " + getBlanksDisplay());
 
             if (isWordSolved()) {
                 onRoundEnd();
@@ -157,9 +158,8 @@ public class GameRoom extends Room {
             }
         } else {
             player.addStrike();
-            broadcast(new StrikePayload(player.getClientId(), player.getStrikes()));
-            broadcast(new MessagePayload("server",
-                    player.getClientName() + " guessed '" + c + "' which is not in the word!"));
+            relay(null, player.getClientName() + " guessed '" + c + "' which is not in the word!");
+            relay(null, "Player: " + player.getClientId() + " got " + player.getStrikes() + " strikes!");
 
             if (player.getStrikes() >= MAX_STRIKES) {
                 onRoundEnd();
@@ -177,28 +177,28 @@ public class GameRoom extends Room {
                 if (b == '_'){
                     missing++;
                 }
+            }
             
             int points = missing * 2;
             player.addPoints(points);
-            
-            broadcast(new PointsPayload(player.getClientId(), player.getPoints()));
-            broadcast(new MessagePayload("server", player.getClientName() + " guessed the word '" + currentWord + "' and earned " + points + " points!"));
+
+            relay (null, player.getClientName() + " guessed the word '" + currentWord + "' and earned " + points + " points!");
             onRoundEnd();
             } else{
                 player.addStrike();
-                broadcast(new StrikePayload(player.getClientId(), player.getStrikes()));
-                broadcast(new MessagePayload("server", player.getClientName() + " guessed the word '" + guess + "' which is incorrect!"));
+
+                relay (null, player.getClientName() + " guessed the word '" + guess + "' which is incorrect!");
             
                 onTurnEnd();
             }
         }
 
     private void handleSkip(Player player) {
-        broadcast(new MessagePayload("server", player.getClientName() + " has chosen to skip their turn."));
+        relay(null, player.getClientName() + " has chosen to skip their turn.");
         onTurnEnd();
     }
 
-    @Override
+   
     public void onTurnEnd() {
         currentTurnIndex++;
 
@@ -209,9 +209,9 @@ public class GameRoom extends Room {
         onTurnStart();
     }
 
-    @Override
+    
     public void onRoundEnd() {
-        broadcast(new MessagePayload("server", "Round has ended!"));
+        relay(null, "Round has ended!");
         sendScoreboard();
 
         if (roundsPlayed >= MAX_ROUNDS) {
@@ -221,9 +221,9 @@ public class GameRoom extends Room {
         onRoundStart();
     }
 
-    @Override
+
     public void onSessionEnd() {
-        broadcast(new MessagePayload("server", "The Session is over, here is the Final Scores:"));
+        relay(null, "The Session is over, here is the Final Scores:");
         sendScoreboard();
 
         for (Player player : players) {
@@ -231,7 +231,7 @@ public class GameRoom extends Room {
             player.setPoints(0);
         }
 
-        broadcast(new MessagePayload("server", "All player data has been reset."));
+        relay(null, "All player data has been reset.");
     }
 
     // need a scoreboard method
@@ -242,29 +242,28 @@ public class GameRoom extends Room {
         for (Player player : players) {
             string.append(player.getClientName()).append(":").append(player.getPoints()).append(" points\n");
         }
-        broadcast(new MessagePayload("server", string.toString()));
+        relay(null, string.toString());
     }
 
-    // adding and removing players, will bneed to override methods
-    @Override
+    // adding and removing players
     public void onClientAdded(ServerThread client) {
-        super.onClientAdded(client);
+        addClient(client);
 
-        Player player = new Player(client.getClientName(), client.getClientId());
+        Player player = new Player(client.getClientName(), (int) client.getClientId());
         players.add(player);
 
-        broadcast(new MessagePayload("server", player.getClientName() + " joined the game!"));
+        relay(null, player.getClientName() + " joined the game!");
         sendScoreboard();
 
     }
 
-    @Override
+    
     public void onClientRemoved(ServerThread client) {
-        super.onClientRemoved(client);
+        removeClient(client);
 
         players.removeIf(player -> player.getClientId().equals(client.getClientId()));
 
-        broadcast(new MessagePayload("server", client.getClientName() + " left the room!"));
+        relay(null, client.getClientName() + " left the room!");
 
         if (currentTurnIndex >= players.size()) {
             currentTurnIndex = 0;

@@ -22,7 +22,8 @@ import Project.Common.Command;
  */
 public class ServerThread extends BaseServerThread {
     private Consumer<ServerThread> onInitializationComplete; // callback to inform when this object is ready
-
+    
+    
     /**
      * A wrapper method so we don't need to keep typing out the long/complex sysout
      * line inside
