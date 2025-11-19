@@ -24,10 +24,6 @@ public class Player {
         return id;
     }
 
-    public int getPoint(){
-        return points;
-    }
-
     public int getStrikes(){
         return strikes;
     }
@@ -44,6 +40,26 @@ public class Player {
     public void reset(){
         points = 0;
         strikes = 0;
+    }
+
+    public int getPoints(){
+        return points;
+    }
+
+    public void setPoints(int p){
+        points = p;
+    }
+
+    public void setStrikes(int s){
+        strikes = s;
+    }
+
+    public String getClientName(){
+        return name;
+    }
+
+    public String getClientId(){
+        return String.valueOf(id);
     }
 
     //override method to format the string output how i like it to be
