@@ -10,6 +10,11 @@ public abstract class Payload {
         this.type = type;
         this.message = message;
     }
+    
+    //getter
+    public String getMessage(){
+        return message;
+    }
 
     @Override
     public String toString(){

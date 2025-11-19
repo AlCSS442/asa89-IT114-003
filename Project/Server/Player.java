@@ -1,70 +1,73 @@
-//ass89
-// going to create a file to represent a player in the hangman game
-
 package Project.Server;
+//ass89
 
 public class Player {
-    private String name;
-    private int id;
+    private final String clientName;
+    private final String clientId;
     private int points;
     private int strikes;
+    private boolean ready;
 
-    public Player(String name, int id){
-        this.name = name;
-        this.id = id;
+    public Player(String clientName, String clientId) {
+        this.clientName = clientName;
+        this.clientId = clientId;
         this.points = 0;
-        this.strikes = 0;   
-    }
-    // the getters for player class
-    public String getName(){
-        return name;
+        this.strikes = 0;
+        this.ready = false;
     }
 
-    public int getId(){
-        return id;
+    //Getters
+    public String getClientName() {
+        return clientName;
     }
 
-    public int getStrikes(){
-        return strikes;
+    public String getClientId() {
+        return clientId;
     }
 
-    //methods for player class
-    public void addPoints(int amount){
-        points += amount;
-    }
-
-    public void addStrike(){
-        strikes++;
-    }
-
-    public void reset(){
-        points = 0;
-        strikes = 0;
-    }
-
-    public int getPoints(){
+    public int getPoints() {
         return points;
     }
 
-    public void setPoints(int p){
-        points = p;
+    public int getStrikes() {
+        return strikes;
     }
 
-    public void setStrikes(int s){
-        strikes = s;
+    public boolean isReady() {
+        return ready;
     }
 
-    public String getClientName(){
-        return name;
+    // Setters
+    public void setPoints(int points) {
+        this.points = points;
     }
 
-    public String getClientId(){
-        return String.valueOf(id);
+    public void addPoints(int pts) {
+        this.points += pts;
     }
 
-    //override method to format the string output how i like it to be
+    public void setStrikes(int strikes) {
+        this.strikes = strikes;
+    }
+
+    public void addStrike() {
+        this.strikes++;
+    }
+
+    public void setReady(boolean ready) {
+        this.ready = ready;
+    }
+
+    // Resetting
+    public void reset() {
+        points = 0;
+        strikes = 0;
+        ready = false;
+    }
+
+    // Override toString, as always
     @Override
-    public String toString(){
-        return name + " (Points: " + points + ", Strikes: " + strikes + ")";
+    public String toString() {
+        return clientName + " (Points: " + points + ", Strikes: " + strikes + ", Ready: " + ready + ")";
     }
 }

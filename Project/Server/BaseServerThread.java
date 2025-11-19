@@ -5,18 +5,8 @@ import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.net.Socket;
 
-import Project.Exceptions.CustomIT114Exception;
-import Project.Exceptions.DuplicateRoomException;
-import Project.Exceptions.RoomNotFoundException;
-import Project.Common.User;
-import Project.Common.TextFX;
-import Project.Common.RoomAction;
-import Project.Common.PayloadType;
 import Project.Common.Payload;
-import Project.Common.Constants;
-import Project.Common.ConnectionPayload;
-import Project.Common.Command;
-
+import Project.Common.User;
 
 /**
  * Base class the handles the underlying connection between Client and
@@ -27,7 +17,7 @@ public abstract class BaseServerThread extends Thread {
     protected boolean isRunning = false; // control variable to stop this thread
     protected ObjectOutputStream out; // exposed here for send()
     protected Socket client; // communication directly to "my" client
-    private User user = new User();
+    protected User user = new User();
     protected Room currentRoom;
 
     /**
@@ -192,6 +182,10 @@ public abstract class BaseServerThread extends Thread {
                         break;
                     }
                     info("IO exception while reading from client");
+                    e.printStackTrace();
+                    break;
+                } catch (Exception e) {
+                    info("Unexpected exception while reading from client");
                     e.printStackTrace();
                     break;
                 }
