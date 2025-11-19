@@ -305,8 +305,8 @@ public class GameRoom extends BaseGameRoom {
             }
         }
 
-        if (hits > 0) {
-            int points = hits;
+        int points = hits;
+        if (hits > 0) {            
             player.addPoints(points);
             relay(null, player.getClientName() + " guessed '" + c + "' and earned " + points + " points!");
             syncPoints(player);
@@ -317,7 +317,7 @@ public class GameRoom extends BaseGameRoom {
                 onTurnEnd();
         } else {
             player.addStrike();
-            relay(null, player.getClientName() + " guessed '" + c + "' which isn't in the word!");
+            relay(null, player.getClientName() + " guessed '" + c + "' and there were " + hits + " '" + c + "'s which got " + points + " points!");
             if (player.getStrikes() >= MAX_STRIKES)
                 onRoundEnd();
             else

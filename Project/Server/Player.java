@@ -1,5 +1,7 @@
-package Project.Server;
+
 //ass89
+package Project.Server;
+
 
 public class Player {
     private final String clientName;
@@ -60,9 +62,9 @@ public class Player {
 
     // Resetting
     public void reset() {
-        points = 0;
-        strikes = 0;
-        ready = false;
+        this.points = 0;
+        this.strikes = 0;
+        this.ready = false;
     }
 
     // Override toString, as always
