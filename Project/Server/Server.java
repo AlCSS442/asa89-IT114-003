@@ -3,29 +3,28 @@ package Project.Server;
 import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Collectors;
 
-import Project.Exceptions.CustomIT114Exception;
-import Project.Exceptions.DuplicateRoomException;
-import Project.Exceptions.RoomNotFoundException;
-import Project.Common.User;
+import Project.Common.LoggerUtil;
 import Project.Common.TextFX;
 import Project.Common.TextFX.Color;
-import Project.Common.RoomAction;
-import Project.Common.PayloadType;
-import Project.Common.Payload;
-import Project.Common.Constants;
-import Project.Common.ConnectionPayload;
-import Project.Common.Command;
-
-
-
-
-
+import Project.Exceptions.DuplicateRoomException;
+import Project.Exceptions.RoomNotFoundException;
 
 public enum Server {
     INSTANCE; // Singleton instance
 
+    {
+        // statically initialize the server-side LoggerUtil
+        LoggerUtil.LoggerConfig config = new LoggerUtil.LoggerConfig();
+        config.setFileSizeLimit(2048 * 1024); // 2MB
+        config.setFileCount(1);
+        config.setLogLocation("server.log");
+        // Set the logger configuration
+        LoggerUtil.INSTANCE.setConfig(config);
+    }
     private int port = 3000;
     // connected clients
     // Use ConcurrentHashMap for thread-safe client management
@@ -35,7 +34,7 @@ public enum Server {
     private long nextClientId = 0;
 
     private void info(String message) {
-        System.out.println(TextFX.colorize(String.format("Server: %s", message), Color.YELLOW));
+        LoggerUtil.INSTANCE.info(TextFX.colorize(String.format("Server: %s", message), Color.YELLOW));
     }
 
     private Server() {
@@ -82,9 +81,9 @@ public enum Server {
                 // Note: We don't yet add the ServerThread reference to our connectedClients map
             }
         } catch (DuplicateRoomException e) {
-            System.err.println(TextFX.colorize("Lobby already exists (this shouldn't happen)", Color.RED));
+            LoggerUtil.INSTANCE.severe(TextFX.colorize("Lobby already exists (this shouldn't happen)", Color.RED));
         } catch (IOException e) {
-            System.err.println(TextFX.colorize("Error accepting connection", Color.RED));
+            LoggerUtil.INSTANCE.severe(TextFX.colorize("Error accepting connection", Color.RED));
             e.printStackTrace();
         } finally {
             info("Closing server socket");
@@ -125,7 +124,7 @@ public enum Server {
         if (rooms.containsKey(nameCheck)) {
             throw new DuplicateRoomException(String.format("Room %s already exists", name));
         }
-        Room room = new Room(name);
+        Room room = Room.LOBBY.equalsIgnoreCase(nameCheck) ? new Room(name) : new GameRoom(name);
         rooms.put(nameCheck, room);
         info(String.format("Created new Room %s", name));
     }
@@ -150,6 +149,22 @@ public enum Server {
         }
         Room next = rooms.get(nameCheck);
         next.addClient(client);
+    }
+
+    /**
+     * Lists all rooms that partially match the given String
+     * 
+     * @param roomQuery
+     * @return
+     */
+    protected List<String> listRooms(String roomQuery) {
+        final String nameCheck = roomQuery.toLowerCase();
+        return rooms.values().stream()
+                .filter(room -> room.getName().toLowerCase().contains(nameCheck))// find partially matched rooms
+                .map(room -> room.getName())// map room to String (name)
+                .limit(10) // limit to 10 results
+                .sorted() // sort the results alphabetically
+                .collect(Collectors.toList()); // return a mutable list
     }
 
     protected void removeRoom(Room room) {
@@ -199,7 +214,7 @@ public enum Server {
     }
 
     public static void main(String[] args) {
-        System.out.println("Server Starting");
+        LoggerUtil.INSTANCE.info("Server Starting");
         Server server = Server.INSTANCE;
         int port = 3000;
         try {
@@ -209,7 +224,7 @@ public enum Server {
             // will default to the defined value prior to the try/catch
         }
         server.start(port);
-        System.out.println("Server Stopped");
+        LoggerUtil.INSTANCE.warning("Server Stopped");
     }
 
 }
