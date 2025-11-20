@@ -63,29 +63,25 @@ public class GameRoom extends BaseGameRoom {
     /** {@inheritDoc} */
     @Override
     protected void onClientAdded(ServerThread sp) {
+        // sync GameRoom state to new client
         syncCurrentPhase(sp);
         syncReadyStatus(sp);
 
-        Player player = new Player(sp.getClientName(), String.valueOf(sp.getClientId()));
-        players.add(player);
+        Player newPlayer = new Player(sp.getClientName(), Long.toString(sp.getClientId()));
+        players.add(newPlayer);
 
-        relay(null, player.getClientName() + " joined the game!");
-        sendScoreboard();
+        relay(null, newPlayer.getClientName() + " joined the game!");
     }
 
     @Override
     protected void onClientRemoved(ServerThread sp) {
-        players.removeIf(p -> p.getClientId().equals(String.valueOf(sp.getClientId())));
-        relay(null, sp.getClientName() + " left the room!");
-
-        if (currentTurnIndex >= players.size()) {
-            currentTurnIndex = 0;
-        }
-
-        sendScoreboard();
-
+        // added after Summer 2024 Demo
+        // Stops the timers so room can clean up
+        LoggerUtil.INSTANCE.info("Player Removed, remaining: " + clientsInRoom.size());
         if (clientsInRoom.isEmpty()) {
-            resetTimers();
+            resetReadyTimer();
+            resetTurnTimer();
+            resetRoundTimer();
             onSessionEnd();
         }
     }
@@ -94,10 +90,6 @@ public class GameRoom extends BaseGameRoom {
 
     @Override
     protected void onSessionStart() {
-        if (!allPlayersReady()) {
-            relay(null, "Cannot start session: not all players are ready!");
-            return;
-        }
 
         LoggerUtil.INSTANCE.info("Session starting...");
         changePhase(Phase.IN_PROGRESS);
@@ -171,20 +163,13 @@ public class GameRoom extends BaseGameRoom {
         }
     }
 
+    /** {@inheritDoc} */
     @Override
     protected void onSessionEnd() {
-        resetTimers();
-        relay(null, "Session over! Final Scores:");
-        sendScoreboard();
-        relay(null, "Game Over!");
-
-        // Reset all player data
-        for (Player p : players) {
-            p.setStrikes(0);
-            p.setPoints(0);
-        }
-
+        LoggerUtil.INSTANCE.info("onSessionEnd() start");
+        resetReadyStatus();
         changePhase(Phase.READY);
+        LoggerUtil.INSTANCE.info("onSessionEnd() end");
     }
 
     // -------------------- Timers --------------------
@@ -211,11 +196,6 @@ public class GameRoom extends BaseGameRoom {
             turnTimer.cancel();
             turnTimer = null;
         }
-    }
-
-    private void resetTimers() {
-        resetTurnTimer();
-        resetRoundTimer();
     }
 
     // -------------------- Word & Letters --------------------
@@ -254,7 +234,8 @@ public class GameRoom extends BaseGameRoom {
     // -------------------- Commands --------------------
 
     public void processCommand(Player player, String cmd, String arg) {
-        if (players.get(currentTurnIndex) != player) {
+        Player current = players.get(currentTurnIndex);
+        if (!current.getClientId().equals(player.getClientId())) {
             relay(null, player.getClientName() + " tried acting out of turn!");
             return;
         }
@@ -284,14 +265,17 @@ public class GameRoom extends BaseGameRoom {
         } else {
             player.addStrike();
             relay(null, player.getClientName() + " guessed '" + guess + "' incorrectly!");
+            resetTurnTimer();
             onTurnEnd();
         }
     }
 
     private void handleLetter(Player player, char c) {
+        System.out.println("Handling letter guess: " + c);
         c = Character.toLowerCase(c);
         if (guessedLetters.contains(c)) {
             relay(null, player.getClientName() + " guessed a duplicate letter!");
+            resetTurnTimer();
             onTurnEnd();
             return;
         }
@@ -328,6 +312,7 @@ public class GameRoom extends BaseGameRoom {
 
     private void handleSkip(Player player) {
         relay(null, player.getClientName() + " skipped their turn.");
+        resetTurnTimer();
         onTurnEnd();
     }
 
@@ -351,271 +336,4 @@ public class GameRoom extends BaseGameRoom {
         System.out.println(payload); // debug output
     }
 
-    // -------------------- Helpers --------------------
-
-    private boolean allPlayersReady() {
-        for (Player p : players) {
-            if (!p.isReady())
-                return false;
-        }
-        return true;
-    }
 }
-
-/*
- * // created wordlist, will load the word list now
- * // if the wordlist fails to load, will use a default wordlist, not ideal
- * though
- * private void loadWordList(String filePath) {
- * try {
- * List<String> list = Files.readAllLines(Paths.get(filePath));
- * for (String w : list) {
- * w = w.trim();
- * if (!w.isEmpty()) {
- * wordList.add(w.toLowerCase());
- * }
- * }
- * System.out.println("[GameRoom] Loaded " + wordList.size() + " words.");
- * } catch (Exception e) {
- * System.out.
- * println("[GameRoom] Failed to load words.txt, using default list instead.");
- * wordList = Arrays.asList("hangman", "java", "testing", "multiplayer");
- * }
- * }
- * 
- * 
- * 
- * 
- * public void onSessionStart() {
- * System.out.println("[GameRoom] Session is now starting...");
- * 
- * wordList.clear();
- * loadWordList("words.txt");
- * 
- * roundsPlayed = 0;
- * currentTurnIndex = random.nextInt(players.size());
- * 
- * relay(null, "Buckle up, the session is starting!");
- * onRoundStart();
- * }
- * 
- * // starting a new round now
- * public void onRoundStart() {
- * if (roundsPlayed >= MAX_ROUNDS) {
- * onSessionEnd();
- * return;
- * }
- * 
- * roundsPlayed++;
- * 
- * currentWord = wordList.get(random.nextInt(wordList.size()));
- * blanks = new char[currentWord.length()];
- * Arrays.fill(blanks, '_');
- * guessedLetters.clear();
- * 
- * for (Player player : players) {
- * player.setStrikes(0);
- * }
- * relay(null, "Round " + roundsPlayed +
- * " has started! New word has been selected!");
- * relay(null, "Word: " + getBlanksDisplay());
- * 
- * onTurnStart();
- * }
- * 
- * 
- * public void onTurnStart() {
- * if (players.isEmpty()) {
- * return;
- * }
- * Player current = players.get(currentTurnIndex);
- * relay(null, "It's now " + current.getClientName() + "'s turn to play!");
- * }
- * 
- * // processing the commands now
- * public void processCommand(Player player, String cmd, String arg) {
- * if (players.get(currentTurnIndex) != player) {
- * relay(null, player.getClientName() + " tried acting out of turn!");
- * return;
- * }
- * switch (cmd) {
- * case "/letter":
- * handleLetter(player, arg.charAt(0));
- * break;
- * case "/guess":
- * handleWordGuess(player, arg);
- * break;
- * case "/skip":
- * handleSkip(player);
- * break;
- * }
- * }
- * 
- * private void handleLetter(Player player, char c) {
- * c = Character.toLowerCase(c);
- * if (guessedLetters.contains(c)) {
- * relay(null, player.getClientName() + " guessed a duplicate letter!");
- * onTurnEnd();
- * return;
- * }
- * guessedLetters.add(c);
- * int hits = 0;
- * for (int i = 0; i < currentWord.length(); i++) {
- * if (currentWord.charAt(i) == c && blanks[i] == '_') {
- * blanks[i] = c;
- * hits++;
- * }
- * }
- * if (hits > 0) {
- * int points = hits;
- * player.addPoints(points);
- * relay(null, player.getClientName() + " found " + hits + " '" + c + "'"
- * + " 'and earned " + points + " points!");
- * relay(null, "Word: " + getBlanksDisplay());
- * 
- * if (isWordSolved()) {
- * onRoundEnd();
- * } else {
- * onTurnEnd();
- * }
- * } else {
- * player.addStrike();
- * relay(null, player.getClientName() + " guessed '" + c +
- * "' which is not in the word!");
- * relay(null, "Player: " + player.getClientId() + " got " + player.getStrikes()
- * + " strikes!");
- * 
- * if (player.getStrikes() >= MAX_STRIKES) {
- * onRoundEnd();
- * } else {
- * onTurnEnd();
- * }
- * }
- * }
- * 
- * private void handleWordGuess( Player player, String guess){
- * if (guess.equalsIgnoreCase(currentWord)){
- * 
- * int missing = 0;
- * for (char b : blanks){
- * if (b == '_'){
- * missing++;
- * }
- * }
- * 
- * int points = missing * 2;
- * player.addPoints(points);
- * 
- * relay (null, player.getClientName() + " guessed the word '" + currentWord +
- * "' and earned " + points + " points!");
- * onRoundEnd();
- * } else{
- * player.addStrike();
- * 
- * relay (null, player.getClientName() + " guessed the word '" + guess +
- * "' which is incorrect!");
- * 
- * onTurnEnd();
- * }
- * }
- * 
- * private void handleSkip(Player player) {
- * relay(null, player.getClientName() + " has chosen to skip their turn.");
- * onTurnEnd();
- * }
- * 
- * 
- * public void onTurnEnd() {
- * currentTurnIndex++;
- * 
- * if (currentTurnIndex >= players.size()) {
- * onRoundEnd();
- * return;
- * }
- * onTurnStart();
- * }
- * 
- * 
- * public void onRoundEnd() {
- * relay(null, "Round has ended!");
- * sendScoreboard();
- * 
- * if (roundsPlayed >= MAX_ROUNDS) {
- * onSessionEnd();
- * return;
- * }
- * onRoundStart();
- * }
- * 
- * 
- * public void onSessionEnd() {
- * relay(null, "The Session is over, here is the Final Scores:");
- * sendScoreboard();
- * 
- * for (Player player : players) {
- * player.setStrikes(0);
- * player.setPoints(0);
- * }
- * 
- * relay(null, "All player data has been reset.");
- * }
- * 
- * // need a scoreboard method
- * private void sendScoreboard() {
- * players.sort((a, b) -> Integer.compare(b.getPoints(), a.getPoints()));
- * 
- * StringBuilder string = new StringBuilder("ScoreBoard\n");
- * for (Player player : players) {
- * string.append(player.getClientName()).append(":").append(player.getPoints()).
- * append(" points\n");
- * }
- * relay(null, string.toString());
- * }
- * 
- * // adding and removing players
- * public void onClientAdded(ServerThread client) {
- * addClient(client);
- * 
- * Player player = new Player(client.getClientName(), (int)
- * client.getClientId());
- * players.add(player);
- * 
- * relay(null, player.getClientName() + " joined the game!");
- * sendScoreboard();
- * 
- * }
- * 
- * 
- * public void onClientRemoved(ServerThread client) {
- * removeClient(client);
- * 
- * players.removeIf(player ->
- * player.getClientId().equals(client.getClientId()));
- * 
- * relay(null, client.getClientName() + " left the room!");
- * 
- * if (currentTurnIndex >= players.size()) {
- * currentTurnIndex = 0;
- * }
- * sendScoreboard();
- * }
- * 
- * // going to create helper to make the game easier to display to the players
- * private String getBlanksDisplay() {
- * StringBuilder blank = new StringBuilder();
- * for (char character : blanks) {
- * blank.append(character).append(" ");
- * }
- * return blank.toString().trim();
- * }
- * 
- * // another help--> check if the word is solved
- * private boolean isWordSolved() {
- * for (char c : blanks) {
- * if (c == '_') {
- * return false;
- * }
- * }
- * return true;
- * }
- */
