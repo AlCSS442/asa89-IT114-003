@@ -14,5 +14,5 @@ import Project.Common.Command;
 
 
 public enum RoomAction {
-    CREATE, JOIN, LEAVE
+    CREATE, JOIN, LEAVE, LIST
 }
