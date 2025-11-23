@@ -1,17 +1,3 @@
-//ass89
-// creating a the logic that defines a specialized room that manages Hangman logic
-
-/* Goals:
- * 1. Extend from Room class
- * 2. load a word list from a file
- * 3. keep track of:
- *  players
- *  current word   
- *  blanks
- *  strikes
- *  rounds
- */
-
 package Project.Server;
 
 import java.io.*;
@@ -19,65 +5,48 @@ import java.util.*;
 import java.nio.file.*;
 
 import Project.Common.LoggerUtil;
-import Project.Exceptions.NotReadyException;
-import Project.Exceptions.PhaseMismatchException;
-import Project.Exceptions.PlayerNotFoundException;
-
 import Project.Common.Phase;
 import Project.Common.TimedEvent;
-
-import Project.Server.Room;
-import Project.Server.ServerThread;
-import Project.Server.Player;
-import Project.Server.PointsPayload;
-import Project.Server.BaseGameRoom;
 import Project.Server.Payload;
+import Project.Server.PointsPayload;
 
 public class GameRoom extends BaseGameRoom {
 
-    // used for general rounds (usually phase-based turns)
     private TimedEvent roundTimer = null;
-
-    // used for granular turn handling (usually turn-order turns)
     private TimedEvent turnTimer = null;
 
-    private static final int MAX_STRIKES = 6; // hangman limit
-    private static final int MAX_ROUNDS = 5; // session limit
+    private static final int MAX_STRIKES = 6; // Hangman limit
+    private static final int MAX_ROUNDS = 5;  // Session limit
 
-    // game state varables
-    private List<Player> players = new ArrayList<>();
+    private List<ServerThread> players = new ArrayList<>();
     private List<String> wordList = new ArrayList<>();
     private String currentWord;
     private char[] blanks;
     private int currentTurnIndex = 0;
     private int roundsPlayed = 0;
-    private Set<Character> guessedLetters = new HashSet<>(); // the array of letters the players already guessed
+    private Set<Character> guessedLetters = new HashSet<>();
 
+    // Map to track strikes per player
+    private Map<ServerThread, Integer> strikesMap = new HashMap<>();
     private Random random = new Random();
 
-    // GameRoom constructor, Room constructor only takes in one parameter (name)
     public GameRoom(String name) {
         super(name);
     }
 
-    /** {@inheritDoc} */
     @Override
     protected void onClientAdded(ServerThread sp) {
-        // sync GameRoom state to new client
         syncCurrentPhase(sp);
         syncReadyStatus(sp);
-
-        Player newPlayer = new Player(sp.getClientName(), Long.toString(sp.getClientId()));
-        players.add(newPlayer);
-
-        relay(null, newPlayer.getClientName() + " joined the game!");
+        players.add(sp);
+        strikesMap.put(sp, 0); // initialize strikes
+        relay(null, sp.getClientName() + " joined the game!");
     }
 
     @Override
     protected void onClientRemoved(ServerThread sp) {
-        // added after Summer 2024 Demo
-        // Stops the timers so room can clean up
-        LoggerUtil.INSTANCE.info("Player Removed, remaining: " + clientsInRoom.size());
+        players.remove(sp);
+        strikesMap.remove(sp);
         if (clientsInRoom.isEmpty()) {
             resetReadyTimer();
             resetTurnTimer();
@@ -86,18 +55,13 @@ public class GameRoom extends BaseGameRoom {
         }
     }
 
-    // -------------------- Lifecycle --------------------
-
     @Override
     protected void onSessionStart() {
-
         LoggerUtil.INSTANCE.info("Session starting...");
         changePhase(Phase.IN_PROGRESS);
 
         loadWordList("words.txt");
         pickNewWord();
-
-        // Randomize first turn
         currentTurnIndex = random.nextInt(players.size());
 
         relay(null, "Session is starting!");
@@ -109,13 +73,13 @@ public class GameRoom extends BaseGameRoom {
         LoggerUtil.INSTANCE.info("Round starting...");
         resetRoundTimer();
         startRoundTimer();
-
+        currentTurnIndex = 0;
         roundsPlayed++;
 
-        // Reset strikes and guessed letters
         guessedLetters.clear();
-        for (Player p : players) {
-            p.setStrikes(0);
+        // reset all strikes
+        for (ServerThread sp : players) {
+            strikesMap.put(sp, 0);
         }
 
         relay(null, "Round " + roundsPlayed + " has started! Word: " + getBlanksDisplay());
@@ -124,29 +88,24 @@ public class GameRoom extends BaseGameRoom {
 
     @Override
     protected void onTurnStart() {
-        if (players.isEmpty())
-            return;
-
+        if (players.isEmpty()) return;
         startTurnTimer();
-
-        Player current = players.get(currentTurnIndex);
+        ServerThread current = players.get(currentTurnIndex);
         relay(null, "It's now " + current.getClientName() + "'s turn!");
     }
 
     @Override
     protected void onTurnEnd() {
         resetTurnTimer();
+        ServerThread current = players.get(currentTurnIndex);
 
-        Player current = players.get(currentTurnIndex);
-
-        // Move to next turn
-        currentTurnIndex++;
-        if (currentTurnIndex >= players.size()) {
-            // End of round
+        if (isWordSolved() || allPlayersMaxStrikes()) {
             onRoundEnd();
-        } else {
-            onTurnStart();
+            return;
         }
+
+        currentTurnIndex = (currentTurnIndex + 1) % players.size();
+        onTurnStart();
     }
 
     @Override
@@ -158,12 +117,11 @@ public class GameRoom extends BaseGameRoom {
             onSessionEnd();
         } else {
             pickNewWord();
-            currentTurnIndex = 0; // round-robin
+            currentTurnIndex = 0;
             onRoundStart();
         }
     }
 
-    /** {@inheritDoc} */
     @Override
     protected void onSessionEnd() {
         LoggerUtil.INSTANCE.info("onSessionEnd() start");
@@ -172,8 +130,7 @@ public class GameRoom extends BaseGameRoom {
         LoggerUtil.INSTANCE.info("onSessionEnd() end");
     }
 
-    // -------------------- Timers --------------------
-
+    //Timers
     private void startRoundTimer() {
         roundTimer = new TimedEvent(30, this::onRoundEnd);
         roundTimer.setTickCallback(time -> System.out.println("Round Time: " + time));
@@ -198,8 +155,7 @@ public class GameRoom extends BaseGameRoom {
         }
     }
 
-    // -------------------- Word & Letters --------------------
-
+    // -------------------- Word Handling --------------------
     private void loadWordList(String filePath) {
         try {
             wordList = Files.readAllLines(Paths.get(filePath));
@@ -213,69 +169,67 @@ public class GameRoom extends BaseGameRoom {
         blanks = new char[currentWord.length()];
         Arrays.fill(blanks, '_');
         guessedLetters.clear();
-
         relay(null, "New word: " + getBlanksDisplay());
     }
 
     private String getBlanksDisplay() {
         StringBuilder sb = new StringBuilder();
-        for (char c : blanks)
-            sb.append(c).append(' ');
+        for (char c : blanks) sb.append(c).append(' ');
         return sb.toString().trim();
     }
 
     private boolean isWordSolved() {
         for (char c : blanks)
-            if (c == '_')
-                return false;
+            if (c == '_') return false;
         return true;
     }
 
-    // -------------------- Commands --------------------
-
-    public void processCommand(Player player, String cmd, String arg) {
-        Player current = players.get(currentTurnIndex);
-        if (!current.getClientId().equals(player.getClientId())) {
-            relay(null, player.getClientName() + " tried acting out of turn!");
+    // Commands
+    public void processCommand(ServerThread client, String cmd, String arg) {
+        ServerThread current = players.get(currentTurnIndex);
+        if (!current.equals(client)) {
+            relay(null, client.getClientName() + " tried acting out of turn!");
             return;
         }
 
-        switch (cmd) {
-            case "/guess" -> handleWordGuess(player, arg);
-            case "/letter" -> handleLetter(player, arg.charAt(0));
-            case "/skip" -> handleSkip(player);
+        switch (cmd.toLowerCase()) {
+            case "/guess" -> handleWordGuess(client, arg);
+            case "/letter" -> handleLetter(client, arg);
+            case "/skip" -> handleSkip(client);
         }
     }
 
-    private void handleWordGuess(Player player, String guess) {
-        if (guess.equalsIgnoreCase(currentWord)) {
+    private void handleWordGuess(ServerThread client, String guess) {
+        resetTurnTimer();
+        guess = guess.toLowerCase();
+
+        if (guess.equals(currentWord)) {
             int missing = 0;
-            for (char b : blanks)
-                if (b == '_')
-                    missing++;
+            for (char b : blanks) if (b == '_') missing++;
+            int points = missing * 2;
 
-            int points = missing * 2; // Milestone: bonus points for solving
-            player.addPoints(points);
-
-            relay(null, player.getClientName() + " guessed the correct word '" + currentWord + "' and earned " + points
-                    + " points!");
-            syncPoints(player);
-
+            client.addPoints(points);
+            relay(null, client.getClientName() + " guessed the correct word '" + currentWord + "' and earned " + points + " points!");
+            relay(null, "Word solved: " + currentWord);
+            sendPlayerPoints(client);
             onRoundEnd();
         } else {
-            player.addStrike();
-            relay(null, player.getClientName() + " guessed '" + guess + "' incorrectly!");
-            resetTurnTimer();
-            onTurnEnd();
+            addStrike(client);
+            relay(null, client.getClientName() + " guessed '" + guess + "' incorrectly! Strike " + strikesMap.get(client) + "/" + MAX_STRIKES);
+            if (strikesMap.get(client) >= MAX_STRIKES || allPlayersMaxStrikes()) {
+                onRoundEnd();
+            } else {
+                onTurnEnd();
+            }
         }
     }
 
-    private void handleLetter(Player player, char c) {
-        System.out.println("Handling letter guess: " + c);
-        c = Character.toLowerCase(c);
+    public void handleLetter(ServerThread client, String letterGuess) {
+        resetTurnTimer();
+        char c = Character.toLowerCase(letterGuess.charAt(0));
+
         if (guessedLetters.contains(c)) {
-            relay(null, player.getClientName() + " guessed a duplicate letter!");
-            resetTurnTimer();
+            relay(null, client.getClientName() + " guessed a duplicate letter!");
             onTurnEnd();
             return;
         }
@@ -289,51 +243,57 @@ public class GameRoom extends BaseGameRoom {
             }
         }
 
-        int points = hits;
         if (hits > 0) {
-            player.addPoints(points);
-            relay(null, player.getClientName() + " guessed '" + c + "' and earned " + points + " points!");
-            syncPoints(player);
-
-            if (isWordSolved())
-                onRoundEnd();
-            else
-                onTurnEnd();
+            client.addPoints(hits);
+            relay(null, client.getClientName() + " guessed '" + c + "' correctly and earned " + hits + " points!");
+            sendPlayerPoints(client);
+            relay(null, "Current word: " + getBlanksDisplay());
         } else {
-            player.addStrike();
-            relay(null, player.getClientName() + " guessed '" + c + "' and there were " + hits + " '" + c
-                    + "'s which got " + points + " points!");
-            if (player.getStrikes() >= MAX_STRIKES)
-                onRoundEnd();
-            else
-                onTurnEnd();
+            addStrike(client);
+            relay(null, client.getClientName() + " guessed '" + c + "' incorrectly! Strike " + strikesMap.get(client) + "/" + MAX_STRIKES);
+        }
+
+        if (isWordSolved() || strikesMap.get(client) >= MAX_STRIKES || allPlayersMaxStrikes()) {
+            onRoundEnd();
+        } else {
+            onTurnEnd();
         }
     }
 
-    private void handleSkip(Player player) {
-        relay(null, player.getClientName() + " skipped their turn.");
+    public void handleSkip(ServerThread client) {
         resetTurnTimer();
+        relay(null, client.getClientName() + " has skipped their turn.");
         onTurnEnd();
     }
 
-    // -------------------- Scoreboard & Payload --------------------
+    // Strikes Management
+    private void addStrike(ServerThread client) {
+        strikesMap.put(client, strikesMap.getOrDefault(client, 0) + 1);
+    }
+
+    private boolean allPlayersMaxStrikes() {
+        for (ServerThread sp : players) {
+            if (strikesMap.getOrDefault(sp, 0) < MAX_STRIKES) return false;
+        }
+        return true;
+    }
+
+    // Scoreboard 
+    private void sendPlayerPoints(ServerThread client) {
+        PointsPayload payload = new PointsPayload(
+                "Points: " + client.getClientName() + " has " + client.getPoints() + " points!",
+                client.getClientId(),
+                client.getPoints());
+        relay(null, payload.toString());
+    }
 
     private void sendScoreboard() {
         players.sort((a, b) -> Integer.compare(b.getPoints(), a.getPoints()));
 
         StringBuilder sb = new StringBuilder("ScoreBoard\n");
-        for (Player p : players) {
-            sb.append(p.getClientName()).append(": ").append(p.getPoints()).append(" points\n");
+        for (ServerThread sp : players) {
+            sb.append(sp.getClientName()).append(": ").append(sp.getPoints()).append(" points\n");
         }
         relay(null, sb.toString());
     }
-
-    private void syncPoints(Player player) {
-        PointsPayload payload = new PointsPayload(
-                "Points: " + player.getClientName() + " has " + player.getPoints() + " points!",
-                Long.parseLong(player.getClientId()), player.getPoints());
-        relay(null, payload.toString());
-        System.out.println(payload); // debug output
-    }
-
 }
