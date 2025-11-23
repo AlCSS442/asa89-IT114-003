@@ -4,23 +4,19 @@ import java.net.Socket;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.Consumer;
+
+import Project.Common.*;
 import Project.Common.TextFX.Color;
-import Project.Common.ConnectionPayload;
-import Project.Common.Constants;
-import Project.Common.LoggerUtil;
-import Project.Common.Payload;
-import Project.Common.PayloadType;
-import Project.Common.Phase;
-import Project.Common.ReadyPayload;
-import Project.Common.RoomAction;
-import Project.Common.RoomResultPayload;
 import Project.Common.TextFX;
+import Project.Common.LoggerUtil;
 
 /**
  * A server-side representation of a single client
  */
 public class ServerThread extends BaseServerThread {
+
     private Consumer<ServerThread> onInitializationComplete; // callback to inform when this object is ready
+    private User user;
 
     /**
      * A wrapper method so we don't need to keep typing out the long/complex sysout
@@ -218,20 +214,52 @@ public class ServerThread extends BaseServerThread {
                     sendMessage(Constants.DEFAULT_CLIENT_ID, "You must be in a GameRoom to do the ready check");
                 }
                 break;
+            case LETTER:
+                if (currentRoom instanceof GameRoom gr) {
+                    gr.handleLetter(this, incoming.getMessage().charAt(0));
+                }
+                break;
 
-            default:
-                LoggerUtil.INSTANCE.warning(TextFX.colorize("Unknown payload type received", Color.RED));
+            case GUESS:
+                if (currentRoom instanceof GameRoom gr) {
+                    gr.handleGuess(this, incoming.getMessage());
+                }
+                break;
+            case SKIP:
+                if (currentRoom instanceof GameRoom gr) {
+                    gr.handleSkip(this);
+                }
                 break;
         }
     }
 
-    // limited user data exposer
-    protected boolean isReady() {
-        return this.user.isReady();
+    // limited user data exposer, user wrapper methods
+    public String getClientName() {
+        return user.getClientName();
     }
 
-    protected void setReady(boolean isReady) {
-        this.user.setReady(isReady);
+    public void setClientName(String name) {
+        user.setClientName(name);
+    }
+
+    public long getClientId() {
+        return user.getClientId();
+    }
+
+    public boolean isReady() {
+        return user.isReady();
+    }
+
+    public void setReady(boolean ready) {
+        user.setReady(ready);
+    }
+
+    public void addPoints(int points) {
+        user.addPoints(points);
+    }
+
+    public int getPoints() {
+        return user.getPoints();
     }
 
     @Override
