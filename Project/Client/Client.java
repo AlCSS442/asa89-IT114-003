@@ -340,7 +340,13 @@ public enum Client {
         System.out.println("listenToServer thread stopped");
     }
 
+    // for debugging
+    private void info(String message) {
+        System.out.println("[Client] " + message);
+    }
+
     private void processPayload(Payload payload) {
+
         switch (payload.getPayloadType()) {
             case CLIENT_CONNECT:
                 break;
@@ -376,8 +382,17 @@ public enum Client {
             case TURN_NOTIFICATION:
                 processTurn(payload);
                 break;
+            case PHASE:
+                System.out.println("[Client] Game phase: " + payload.getMessage());
+                break;
+
+            case SYNC_READY:
+                System.out.println("[Client] Player ready status updated.");
+                break;
             default:
                 System.out.println(TextFX.colorize("Unhandled payload type", Color.YELLOW));
+                info("Received payload: type=" + payload.getPayloadType() + ", message=" + payload.getMessage());
+                ;
                 break;
 
         }

@@ -24,7 +24,9 @@ public class GameRoom extends BaseGameRoom {
     private char[] blanks;
     private int currentTurnIndex = 0;
     private int roundsPlayed = 0;
-    private Set<Character> guessedLetters = new HashSet<>();
+    private Set<Character> 
+    
+    guessedLetters = new HashSet<>();
 
     // Map to track strikes per player
     private Map<ServerThread, Integer> strikesMap = new HashMap<>();
@@ -199,7 +201,7 @@ public class GameRoom extends BaseGameRoom {
         }
     }
 
-    private void handleWordGuess(ServerThread client, String guess) {
+    public void handleWordGuess(ServerThread client, String guess) {
         resetTurnTimer();
         guess = guess.toLowerCase();
 

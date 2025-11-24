@@ -29,5 +29,6 @@ public enum PayloadType {
        LETTER,
        SKIP,
        POINTS,
-       TURN_NOTIFICATION;
+       TURN_NOTIFICATION,
+       TIME;
 }

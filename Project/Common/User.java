@@ -4,6 +4,7 @@ public class User {
     private long clientId = Constants.DEFAULT_CLIENT_ID;
     private String clientName;
     private boolean isReady = false;
+    private int points= 0;
 
     /**
      * @return the clientId
@@ -43,6 +44,14 @@ public class User {
 
     public void setReady(boolean isReady) {
         this.isReady = isReady;
+    }
+
+    public void addPoints(int p) {
+        this.points += p;
+    }
+
+    public int getPoints() {
+        return this.points;
     }
 
     public void reset() {
