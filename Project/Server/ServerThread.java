@@ -5,10 +5,20 @@ import java.util.List;
 import java.util.Objects;
 import java.util.function.Consumer;
 
-import Project.Common.*;
 import Project.Common.TextFX.Color;
 import Project.Common.TextFX;
 import Project.Common.LoggerUtil;
+import Project.Common.RoomAction;
+import Project.Common.Phase;
+import Project.Common.User;
+
+import Project.Common.Payload;
+import Project.Common.ReadyPayload;
+import Project.Common.ConnectionPayload;
+import Project.Common.RoomResultPayload;
+
+import Project.Common.PayloadType;
+import Project.Common.Constants;
 
 /**
  * A server-side representation of a single client
@@ -41,21 +51,26 @@ public class ServerThread extends BaseServerThread {
     protected ServerThread(Socket myClient, Consumer<ServerThread> onInitializationComplete) {
         Objects.requireNonNull(myClient, "Client socket cannot be null");
         Objects.requireNonNull(onInitializationComplete, "callback cannot be null");
-        info("ServerThread created");
-        // get communication channels to single client
+        this.user = new User();
+        this.currentRoom = new Room("lobby");
+
         this.client = myClient;
         // this.clientId = this.threadId(); // An id associated with the thread
         // instance, used as a temporary identifier
         this.onInitializationComplete = onInitializationComplete;
 
+        info("ServerThread created");
+        // get communication channels to single client
+
     }
 
     // Start Send*() Methods
     public boolean sendCurrentPhase(Phase phase) {
-        Payload p = new Payload();
+        Payload p = new Payload(); // use base Payload directly
         p.setPayloadType(PayloadType.PHASE);
         p.setMessage(phase.name());
         return sendToClient(p);
+
     }
 
     public boolean sendResetReady() {
@@ -197,7 +212,15 @@ public class ServerThread extends BaseServerThread {
                 currentRoom.handleCreateRoom(this, incoming.getMessage());
                 break;
             case ROOM_JOIN:
-                currentRoom.handleJoinRoom(this, incoming.getMessage());
+                String roomName = payload.getMessage();
+
+                Room room = Server.INSTANCE.getRoom(roomName);
+                if (room == null) {
+                    sendMessage(Constants.DEFAULT_CLIENT_ID, "Room not found: " + roomName);
+                    break;
+                }
+
+                room.addClient(this);
                 break;
             case ROOM_LEAVE:
                 currentRoom.handleJoinRoom(this, Room.LOBBY);
@@ -216,13 +239,13 @@ public class ServerThread extends BaseServerThread {
                 break;
             case LETTER:
                 if (currentRoom instanceof GameRoom gr) {
-                    gr.handleLetter(this, incoming.getMessage().charAt(0));
+                    gr.handleLetter(this, String.valueOf(incoming.getMessage().charAt(0)));
                 }
                 break;
 
             case GUESS:
                 if (currentRoom instanceof GameRoom gr) {
-                    gr.handleGuess(this, incoming.getMessage());
+                    gr.handleWordGuess(this, incoming.getMessage());
                 }
                 break;
             case SKIP:
