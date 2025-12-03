@@ -25,6 +25,9 @@ public enum PayloadType {
                     // (saves network requests)
        PHASE, // syncs current phase of session (used as a switch to only allow certain logic
               // to execute)
+       TURN,
+       SYNC_TURN,
+       RESET_TURN,
        GUESS,
        LETTER,
        SKIP,

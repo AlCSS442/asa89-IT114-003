@@ -4,21 +4,17 @@ import java.net.Socket;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.Consumer;
-
 import Project.Common.TextFX.Color;
-import Project.Common.TextFX;
-import Project.Common.LoggerUtil;
-import Project.Common.RoomAction;
-import Project.Common.Phase;
-import Project.Common.User;
-
-import Project.Common.Payload;
-import Project.Common.ReadyPayload;
 import Project.Common.ConnectionPayload;
-import Project.Common.RoomResultPayload;
-
-import Project.Common.PayloadType;
 import Project.Common.Constants;
+import Project.Common.LoggerUtil;
+import Project.Common.Payload;
+import Project.Common.PayloadType;
+import Project.Common.Phase;
+import Project.Common.ReadyPayload;
+import Project.Common.RoomAction;
+import Project.Common.RoomResultPayload;
+import Project.Common.TextFX;
 
 /**
  * A server-side representation of a single client
@@ -26,7 +22,7 @@ import Project.Common.Constants;
 public class ServerThread extends BaseServerThread {
 
     private Consumer<ServerThread> onInitializationComplete; // callback to inform when this object is ready
-    private User user;
+    private int points = 0;
 
     /**
      * A wrapper method so we don't need to keep typing out the long/complex sysout
@@ -51,9 +47,8 @@ public class ServerThread extends BaseServerThread {
     protected ServerThread(Socket myClient, Consumer<ServerThread> onInitializationComplete) {
         Objects.requireNonNull(myClient, "Client socket cannot be null");
         Objects.requireNonNull(onInitializationComplete, "callback cannot be null");
-        this.user = new User();
-        this.currentRoom = new Room("lobby");
-
+        info("ServerThread created");
+        // get communication channels to single client
         this.client = myClient;
         // this.clientId = this.threadId(); // An id associated with the thread
         // instance, used as a temporary identifier
@@ -65,8 +60,29 @@ public class ServerThread extends BaseServerThread {
     }
 
     // Start Send*() Methods
+    // Start Send*() Methods
+    public boolean sendResetTurnStatus() {
+        ReadyPayload rp = new ReadyPayload();
+        rp.setPayloadType(PayloadType.RESET_TURN);
+        return sendToClient(rp);
+    }
+
+    public boolean sendTurnStatus(long clientId, boolean didTakeTurn) {
+        return sendTurnStatus(clientId, didTakeTurn, false);
+    }
+
+    public boolean sendTurnStatus(long clientId, boolean didTakeTurn, boolean quiet) {
+        // NOTE for now using ReadyPayload as it has the necessary properties
+        // An actual turn may include other data for your project
+        ReadyPayload rp = new ReadyPayload();
+        rp.setPayloadType(quiet ? PayloadType.SYNC_TURN : PayloadType.TURN);
+        rp.setClientId(clientId);
+        rp.setReady(didTakeTurn);
+        return sendToClient(rp);
+    }
+
     public boolean sendCurrentPhase(Phase phase) {
-        Payload p = new Payload(); // use base Payload directly
+        Payload p = new Payload();
         p.setPayloadType(PayloadType.PHASE);
         p.setMessage(phase.name());
         return sendToClient(p);
@@ -197,37 +213,36 @@ public class ServerThread extends BaseServerThread {
         switch (incoming.getPayloadType()) {
             case CLIENT_CONNECT:
                 setClientName(((ConnectionPayload) incoming).getClientName().trim());
-
                 break;
+
             case DISCONNECT:
                 currentRoom.handleDisconnect(this);
                 break;
+
             case MESSAGE:
                 currentRoom.handleMessage(this, incoming.getMessage());
                 break;
+
             case REVERSE:
                 currentRoom.handleReverseText(this, incoming.getMessage());
                 break;
+
             case ROOM_CREATE:
                 currentRoom.handleCreateRoom(this, incoming.getMessage());
                 break;
+                
             case ROOM_JOIN:
-                String roomName = payload.getMessage();
-
-                Room room = Server.INSTANCE.getRoom(roomName);
-                if (room == null) {
-                    sendMessage(Constants.DEFAULT_CLIENT_ID, "Room not found: " + roomName);
-                    break;
-                }
-
-                room.addClient(this);
+                currentRoom.handleJoinRoom(this, incoming.getMessage());
                 break;
+
             case ROOM_LEAVE:
                 currentRoom.handleJoinRoom(this, Room.LOBBY);
                 break;
+
             case ROOM_LIST:
                 currentRoom.handleListRooms(this, incoming.getMessage());
                 break;
+
             case READY:
                 // no data needed as the intent will be used as the trigger
                 try {
@@ -253,7 +268,11 @@ public class ServerThread extends BaseServerThread {
                     gr.handleSkip(this);
                 }
                 break;
+            default:
+                LoggerUtil.INSTANCE.warning(TextFX.colorize("Unknown payload type received", Color.RED));
+                break;
         }
+
     }
 
     // limited user data exposer, user wrapper methods
@@ -269,25 +288,33 @@ public class ServerThread extends BaseServerThread {
         return user.getClientId();
     }
 
-    public boolean isReady() {
-        return user.isReady();
+    protected boolean isReady() {
+        return this.user.isReady();
     }
 
-    public void setReady(boolean ready) {
-        user.setReady(ready);
+    protected void setReady(boolean isReady) {
+        this.user.setReady(isReady);
     }
 
-    public void addPoints(int points) {
-        user.addPoints(points);
+    protected boolean didTakeTurn() {
+        return this.user.didTakeTurn();
     }
 
-    public int getPoints() {
-        return user.getPoints();
+    protected void setTookTurn(boolean tookTurn) {
+        this.user.setTookTurn(tookTurn);
     }
 
     @Override
     protected void onInitialized() {
         // once receiving the desired client name the object is ready
         onInitializationComplete.accept(this);
+    }
+
+    public int getPoints() {
+        return points;
+    }
+
+    public void addPoints(int p) {
+        points += p;
     }
 }
