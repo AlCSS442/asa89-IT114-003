@@ -230,7 +230,7 @@ public class ServerThread extends BaseServerThread {
             case ROOM_CREATE:
                 currentRoom.handleCreateRoom(this, incoming.getMessage());
                 break;
-                
+
             case ROOM_JOIN:
                 currentRoom.handleJoinRoom(this, incoming.getMessage());
                 break;
@@ -280,9 +280,11 @@ public class ServerThread extends BaseServerThread {
         return user.getClientName();
     }
 
+    /*
     public void setClientName(String name) {
         user.setClientName(name);
     }
+    */
 
     public long getClientId() {
         return user.getClientId();
