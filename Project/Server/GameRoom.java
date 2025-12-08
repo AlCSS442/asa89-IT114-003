@@ -256,6 +256,32 @@ public class GameRoom extends BaseGameRoom {
     // end lifecycle methods
 
     // send/sync data to ServerThread(s)
+    protected void syncTurnResult(ServerThread sp, String lg) {
+        sp.sendTurnAction(sp.getClientId(), lg);
+    }
+    protected void sendTurnResult(ServerThread sp, String lg) {
+        clientsInRoom.values().removeIf(spInRoom -> {
+            boolean failedToSend = !spInRoom.sendTurnAction(sp.getClientId(), lg);
+            if (failedToSend) {
+                removeClient(spInRoom);
+            }
+            return failedToSend;
+        });
+    }
+
+    /**
+     * Sends the current phase to all clients
+     */
+    protected void sendTurnEnd() {
+        clientsInRoom.values().removeIf(spInRoom -> {
+            boolean failedToSend = !spInRoom.sendCurrentPhase(currentPhase);
+            if (failedToSend) {
+                removeClient(spInRoom);
+            }
+            return failedToSend;
+        });
+    }
+
     private void sendResetTurnStatus() {
         clientsInRoom.values().forEach(spInRoom -> {
             boolean failedToSend = !spInRoom.sendResetTurnStatus();
@@ -517,6 +543,7 @@ public class GameRoom extends BaseGameRoom {
             client.addPoints(points);
             relay(null, client.getClientName() + " guessed letter '" + letter + "' correctly and earned " + points
                     + " points!");
+            sendTurnResult(client, "" + letter);
         } else {
             // wrong guess
             addStrike();
@@ -623,12 +650,12 @@ public class GameRoom extends BaseGameRoom {
             relay(null, client.getClientName() +
                     " guessed the correct word '" + currentWord +
                     "' and earned " + missing + " points!");
-
+            sendTurnResult(client, guess);
             relay(null, "Word solved: " + currentWord);
 
             sendPlayerPoints(client);
 
-            //marking it as solved
+            // marking it as solved
             for (int i = 0; i < currentWord.length(); i++) {
                 blanks[i] = currentWord.charAt(i);
             }

@@ -475,6 +475,10 @@ public enum Client {
                 // note no data necessary as this is just a trigger
                 processResetTurn();
                 break;
+            case LETTER_GUESS:
+                processLetterGuess(payload);
+                break;
+
             default:
                 LoggerUtil.INSTANCE.warning(TextFX.colorize("Unhandled payload type", Color.YELLOW));
                 break;
@@ -650,6 +654,19 @@ public enum Client {
         LoggerUtil.INSTANCE.info(TextFX.colorize(payload.getMessage(), Color.BLUE));
     }
 
+    private void processGuess(Payload payload) {
+        String guess = payload.getMessage();
+        long clientId = payload.getClientId();
+
+        String name = knownClients.containsKey(clientId) ? knownClients.get(clientId).getDisplayName() : "Unknown";
+
+        System.out.println(TextFX.colorize(String.format("%s guessed: %s", name, guess), Color.RED));
+    }
+
+    private void processLetterGuess(Payload payload) {
+        LoggerUtil.INSTANCE.info(TextFX.colorize(payload.getMessage(), Color.BLUE));
+    }
+
     private void processReverse(Payload payload) {
         LoggerUtil.INSTANCE.info(TextFX.colorize(payload.getMessage(), Color.PURPLE));
     }
@@ -674,15 +691,7 @@ public enum Client {
         LoggerUtil.INSTANCE.info("listenToInput thread stopped");
     }
 
-    private void processGuess(Payload payload) {
-        String guess = payload.getMessage();
-        long clientId = payload.getClientId();
-
-        String name = knownClients.containsKey(clientId) ? knownClients.get(clientId).getDisplayName() : "Unknown";
-
-        System.out.println(TextFX.colorize(String.format("%s guessed: %s", name, guess), Color.RED));
-    }
-
+    
     /**
      * Closes the client connection and associated resources
      */
