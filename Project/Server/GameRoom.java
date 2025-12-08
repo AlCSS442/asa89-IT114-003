@@ -44,7 +44,7 @@ public class GameRoom extends BaseGameRoom {
     private String currentWord;
     private char[] blanks;
     private Set<Character> guessedLetters = new HashSet<>();
-    private Map<ServerThread, Integer> strikesMap = new HashMap<>();
+    private int strikes = 0;
     private Random random = new Random();
     // -------------------------------------
 
@@ -129,14 +129,12 @@ public class GameRoom extends BaseGameRoom {
     protected void onRoundStart() {
         LoggerUtil.INSTANCE.info("onRoundStart() start");
         resetRoundTimer();
-        resetTurnStatus(); // reset per-round took-turn flags and notify clients
+        resetTurnStatus();
         round++;
         // initialize Hangman round state
         pickNewWord();
         guessedLetters.clear();
-        strikesMap.clear();
-        // initialize strikes for currently present players
-        clientsInRoom.values().forEach(sp -> strikesMap.put(sp, 0));
+        strikes = 0;
         relay(null, String.format("Round %d has started. Word: %s", round, getBlanksDisplay()));
         // startRoundTimer(); // optionally enable
         LoggerUtil.INSTANCE.info("onRoundStart() end");
@@ -144,36 +142,57 @@ public class GameRoom extends BaseGameRoom {
     }
 
     /** {@inheritDoc} */
+
+    /*
+     * @Override
+     * protected void onTurnStart() {
+     * LoggerUtil.INSTANCE.info("onTurnStart() start");
+     * resetTurnTimer();
+     * try {
+     * // getNextPlayer advances the currentTurnClientId (if needed) and returns the
+     * // player whose turn it is
+     * ServerThread currentPlayer = getNextPlayer();
+     * relay(null, String.format("It's %s's turn", currentPlayer.getDisplayName()));
+     * } catch (MissingCurrentPlayerException | PlayerNotFoundException e) {
+     * 
+     * e.printStackTrace();
+     * }
+     * startTurnTimer();
+     * LoggerUtil.INSTANCE.info("onTurnStart() end");
+     * }
+     */
     @Override
     protected void onTurnStart() {
         LoggerUtil.INSTANCE.info("onTurnStart() start");
         resetTurnTimer();
+
         try {
-            // getNextPlayer advances the currentTurnClientId (if needed) and returns the
-            // player whose turn it is
             ServerThread currentPlayer = getNextPlayer();
+
+            if (currentPlayer == null) {
+                // all players eliminated, end round
+                onRoundEnd();
+                return;
+            }
+
             relay(null, String.format("It's %s's turn", currentPlayer.getDisplayName()));
+
         } catch (MissingCurrentPlayerException | PlayerNotFoundException e) {
-            // If there is no current player set, just log and return
-            LoggerUtil.INSTANCE.warning("onTurnStart: " + e.getMessage());
-            return;
+            e.printStackTrace();
         }
+
         startTurnTimer();
         LoggerUtil.INSTANCE.info("onTurnStart() end");
     }
 
+    // Note: logic between Turn Start and Turn End is typically handled via timers
+    // and user interaction
     /** {@inheritDoc} */
     @Override
     protected void onTurnEnd() {
         LoggerUtil.INSTANCE.info("onTurnEnd() start");
         resetTurnTimer(); // reset timer if turn ended without the time expiring
         try {
-            // check for end-of-round conditions: solved or all players max strikes
-            if (isWordSolved() || allPlayersMaxStrikes()) {
-                onRoundEnd();
-                return;
-            }
-
             if (isLastPlayer()) {
                 // if the current player is the last player in the turn order, end the round
                 onRoundEnd();
@@ -181,25 +200,45 @@ public class GameRoom extends BaseGameRoom {
                 onTurnStart();
             }
         } catch (MissingCurrentPlayerException | PlayerNotFoundException e) {
-            LoggerUtil.INSTANCE.warning("onTurnEnd: " + e.getMessage());
+
+            e.printStackTrace();
         }
         LoggerUtil.INSTANCE.info("onTurnEnd() end");
     }
 
+    // Note: logic between Round Start and Round End is typically handled via timers
+    // and user interaction
     /** {@inheritDoc} */
     @Override
     protected void onRoundEnd() {
-        LoggerUtil.INSTANCE.info("onRoundEnd() start");
-        resetRoundTimer(); // reset timer if round ended without the time expiring
+        LoggerUtil.INSTANCE.info("Hangman onRoundEnd() start");
 
-        // send scoreboard at round end
-        sendScoreboard();
+        // Only end the round if word solved OR all players struck out
+        if (isWordSolved() || allPlayersMaxStrikes()) {
 
-        LoggerUtil.INSTANCE.info("onRoundEnd() end");
-        if (round >= 3) {
-            onSessionEnd();
+            relay(null, "The word was: " + currentWord);
+
+            // Reset word + guessed letters + blanks
+            strikes = 0;
+
+            // Showing the scoreboard
+            sendScoreboard();
+
+            if (round >= MAX_ROUNDS) {
+                onSessionEnd();
+            } else {
+                onRoundStart();
+            }
+
         } else {
-            onRoundStart();
+            // If round SHOULD NOT END, keep going
+            // Move to next player's turn
+            LoggerUtil.INSTANCE.info("Word not finished — continuing round");
+            try {
+                onTurnStart();
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
         }
     }
 
@@ -217,6 +256,32 @@ public class GameRoom extends BaseGameRoom {
     // end lifecycle methods
 
     // send/sync data to ServerThread(s)
+    protected void syncTurnResult(ServerThread sp, String lg) {
+        sp.sendTurnAction(sp.getClientId(), lg);
+    }
+    protected void sendTurnResult(ServerThread sp, String lg) {
+        clientsInRoom.values().removeIf(spInRoom -> {
+            boolean failedToSend = !spInRoom.sendTurnAction(sp.getClientId(), lg);
+            if (failedToSend) {
+                removeClient(spInRoom);
+            }
+            return failedToSend;
+        });
+    }
+
+    /**
+     * Sends the current phase to all clients
+     */
+    protected void sendTurnEnd() {
+        clientsInRoom.values().removeIf(spInRoom -> {
+            boolean failedToSend = !spInRoom.sendCurrentPhase(currentPhase);
+            if (failedToSend) {
+                removeClient(spInRoom);
+            }
+            return failedToSend;
+        });
+    }
+
     private void sendResetTurnStatus() {
         clientsInRoom.values().forEach(spInRoom -> {
             boolean failedToSend = !spInRoom.sendResetTurnStatus();
@@ -291,20 +356,39 @@ public class GameRoom extends BaseGameRoom {
     /**
      * Gets the next player in the turn order.
      * If the current player is the last in the turn order, it wraps around
-     * (round-robin). Also sets `currentTurnClientId`.
+     * (round-robin).
      *
      * @return
      * @throws MissingCurrentPlayerException
      * @throws PlayerNotFoundException
      */
+    /*
+     * !!!
+     * private ServerThread getNextPlayer() throws MissingCurrentPlayerException,
+     * PlayerNotFoundException {
+     * int index = 0;
+     * if (currentTurnClientId != Constants.DEFAULT_CLIENT_ID) {
+     * index = turnOrder.indexOf(getCurrentPlayer()) + 1;
+     * if (index >= turnOrder.size()) {
+     * index = 0;
+     * }
+     * }
+     * ServerThread nextPlayer = turnOrder.get(index);
+     * currentTurnClientId = nextPlayer.getClientId();
+     * return nextPlayer;
+     * }
+     */
     private ServerThread getNextPlayer() throws MissingCurrentPlayerException, PlayerNotFoundException {
+        if (turnOrder.isEmpty()) {
+            throw new PlayerNotFoundException("No players in turn order");
+        }
+
         int index = 0;
         if (currentTurnClientId != Constants.DEFAULT_CLIENT_ID) {
-            index = turnOrder.indexOf(getCurrentPlayer()) + 1;
-            if (index >= turnOrder.size()) {
-                index = 0;
-            }
+            index = turnOrder.indexOf(getCurrentPlayer());
+            index = (index + 1) % turnOrder.size();
         }
+
         ServerThread nextPlayer = turnOrder.get(index);
         currentTurnClientId = nextPlayer.getClientId();
         return nextPlayer;
@@ -350,12 +434,13 @@ public class GameRoom extends BaseGameRoom {
 
     private void loadWordList(String filePath) {
         try {
-            wordList = Files.readAllLines(Paths.get(filePath));
+            wordList = Files.readAllLines(
+                    Paths.get("C:\\Users\\Dean\\Desktop\\NJIT\\IT114\\asa89-IT114-003\\Project\\words.txt"));
             // remove empty lines and trim
             wordList = wordList.stream().map(String::trim).filter(s -> !s.isEmpty()).collect(Collectors.toList());
         } catch (IOException e) {
             // fallback small list if file missing
-            wordList = Arrays.asList("hangman", "java", "multiplayer", "testing");
+            wordList = Arrays.asList("hangman");
         }
     }
 
@@ -368,9 +453,6 @@ public class GameRoom extends BaseGameRoom {
         blanks = new char[currentWord.length()];
         Arrays.fill(blanks, '_');
         guessedLetters.clear();
-        // ensure strikes map contains all current players
-        clientsInRoom.values().forEach(sp -> strikesMap.putIfAbsent(sp, 0));
-        relay(null, "New word: " + getBlanksDisplay());
     }
 
     private String getBlanksDisplay() {
@@ -388,21 +470,17 @@ public class GameRoom extends BaseGameRoom {
     }
 
     // Strikes Management
-    private void addStrike(ServerThread client) {
-        strikesMap.put(client, strikesMap.getOrDefault(client, 0) + 1);
+    private void addStrike() {
+        strikes++;
     }
 
     private boolean allPlayersMaxStrikes() {
-        for (ServerThread sp : clientsInRoom.values()) {
-            if (strikesMap.getOrDefault(sp, 0) < MAX_STRIKES)
-                return false;
-        }
-        return true;
+        return strikes >= MAX_STRIKES;
     }
 
     // Scoreboard
     private void sendPlayerPoints(ServerThread client) {
-        // If you have a PointsPayload or similar, adapt this. For now send simple
+        // I have a PointsPayload or similar, adapt this. For now send simple
         // relay.
         relay(null, "Points: " + client.getClientName() + " has " + client.getPoints() + " points!");
     }
@@ -435,6 +513,7 @@ public class GameRoom extends BaseGameRoom {
      * - /skip
      */
     public void handleLetter(ServerThread client, String letterStr) {
+
         if (letterStr == null || letterStr.isEmpty()) {
             relay(null, "No letter provided.");
             return;
@@ -445,8 +524,6 @@ public class GameRoom extends BaseGameRoom {
         // ignore letters already guessed
         if (guessedLetters.contains(letter)) {
             relay(null, client.getClientName() + " already guessed '" + letter + "'");
-            client.setTookTurn(true);
-            sendTurnStatus(client, true);
             onTurnEnd();
             return;
         }
@@ -466,10 +543,13 @@ public class GameRoom extends BaseGameRoom {
             client.addPoints(points);
             relay(null, client.getClientName() + " guessed letter '" + letter + "' correctly and earned " + points
                     + " points!");
+            sendTurnResult(client, "" + letter);
         } else {
-            addStrike(client);
-            relay(null, client.getClientName() + " guessed letter '" + letter + "' incorrectly! Strike "
-                    + strikesMap.get(client) + "/" + MAX_STRIKES);
+            // wrong guess
+            addStrike();
+            relay(null,
+                    client.getClientName() + " guessed incorrectly! Global strikes: " + strikes + "/" + MAX_STRIKES);
+
         }
 
         relay(null, "Current word: " + getBlanksDisplay());
@@ -496,57 +576,62 @@ public class GameRoom extends BaseGameRoom {
         onTurnEnd();
     }
 
-    public void processCommand(ServerThread currentUser, String cmd, String arg) {
-        boolean roundEnded = false;
-        try {
-            // ensure client is in room & phase & it's their turn
-            checkPlayerInRoom(currentUser);
-            checkCurrentPhase(currentUser, Phase.IN_PROGRESS);
-            checkCurrentPlayer(currentUser.getClientId());
-            checkIsReady(currentUser);
-
-            // process command
-            switch (cmd.toLowerCase()) {
-                case "/guess" -> {
-                    handleWordGuess(currentUser, arg);
-                    roundEnded = isWordSolved() || allPlayersMaxStrikes();
-                }
-                case "/letter" -> {
-                    handleLetter(currentUser, arg);
-                    roundEnded = isWordSolved() || allPlayersMaxStrikes();
-                }
-                case "/skip" -> handleSkip(currentUser);
-                default -> relay(null, "Unknown command: " + cmd);
-            }
-
-            // mark that client took their turn and notify others (professor pattern)
-            if (!currentUser.didTakeTurn()) {
-                currentUser.setTookTurn(true);
-                sendTurnStatus(currentUser, currentUser.didTakeTurn());
-            }
-
-            // finished processing the turn -> advance turn lifecycle
-            onTurnEnd();
-
-        } catch (NotPlayersTurnException e) {
-            currentUser.sendMessage(Constants.DEFAULT_CLIENT_ID, "It's not your turn");
-            LoggerUtil.INSTANCE.severe("handleTurnAction exception", e);
-        } catch (NotReadyException e) {
-            // The check method already informs the currentUser
-            LoggerUtil.INSTANCE.severe("handleTurnAction exception", e);
-        } catch (PlayerNotFoundException e) {
-            currentUser.sendMessage(Constants.DEFAULT_CLIENT_ID, "You must be in a GameRoom to do the ready check");
-            LoggerUtil.INSTANCE.severe("handleTurnAction exception", e);
-        } catch (PhaseMismatchException e) {
-            currentUser.sendMessage(Constants.DEFAULT_CLIENT_ID,
-                    "You can only take a turn during the IN_PROGRESS phase");
-            LoggerUtil.INSTANCE.severe("handleTurnAction exception", e);
-        } catch (Exception e) {
-            LoggerUtil.INSTANCE.severe("handleTurnAction exception", e);
-        }
-    }
+    /*
+     * public void processClientCommand(ServerThread currentUser, String cmd, String
+     * arg) {
+     * boolean roundEnded = false;
+     * try {
+     * // ensure client is in room & phase & it's their turn
+     * checkPlayerInRoom(currentUser);
+     * checkCurrentPhase(currentUser, Phase.IN_PROGRESS);
+     * checkCurrentPlayer(currentUser.getClientId());
+     * checkIsReady(currentUser);
+     * 
+     * // process command
+     * switch (cmd.toLowerCase()) {
+     * case "/guess" -> {
+     * handleWordGuess(currentUser, arg);
+     * roundEnded = isWordSolved() || allPlayersMaxStrikes();
+     * }
+     * case "/letter" -> {
+     * handleLetter(currentUser, arg);
+     * roundEnded = isWordSolved() || allPlayersMaxStrikes();
+     * }
+     * case "/skip" -> handleSkip(currentUser);
+     * default -> relay(null, "Unknown command: " + cmd);
+     * }
+     * 
+     * // mark that client took their turn and notify others
+     * if (!currentUser.didTakeTurn()) {
+     * currentUser.setTookTurn(true);
+     * sendTurnStatus(currentUser, currentUser.didTakeTurn());
+     * }
+     * 
+     * // finished processing the turn -> advance turn lifecycle
+     * onTurnEnd();
+     * 
+     * } catch (NotPlayersTurnException e) {
+     * currentUser.sendMessage(Constants.DEFAULT_CLIENT_ID, "It's not your turn");
+     * LoggerUtil.INSTANCE.severe("handleTurnAction exception", e);
+     * } catch (NotReadyException e) {
+     * // The check method already informs the currentUser
+     * LoggerUtil.INSTANCE.severe("handleTurnAction exception", e);
+     * } catch (PlayerNotFoundException e) {
+     * currentUser.sendMessage(Constants.DEFAULT_CLIENT_ID,
+     * "You must be in a GameRoom to do the ready check");
+     * LoggerUtil.INSTANCE.severe("handleTurnAction exception", e);
+     * } catch (PhaseMismatchException e) {
+     * currentUser.sendMessage(Constants.DEFAULT_CLIENT_ID,
+     * "You can only take a turn during the IN_PROGRESS phase");
+     * LoggerUtil.INSTANCE.severe("handleTurnAction exception", e);
+     * } catch (Exception e) {
+     * LoggerUtil.INSTANCE.severe("handleTurnAction exception", e);
+     * }
+     * }
+     */
 
     public void handleWordGuess(ServerThread client, String guess) {
+
         if (guess == null) {
             relay(null, "No guess provided.");
             return;
@@ -560,46 +645,49 @@ public class GameRoom extends BaseGameRoom {
                 if (b == '_')
                     missing++;
 
-            int points = missing * 2;
-            client.addPoints(points);
+            client.addPoints(missing);
 
-            relay(null,
-                    client.getClientName() + " guessed the correct word '" + currentWord +
-                            "' and earned " + points + " points!");
-
+            relay(null, client.getClientName() +
+                    " guessed the correct word '" + currentWord +
+                    "' and earned " + missing + " points!");
+            sendTurnResult(client, guess);
             relay(null, "Word solved: " + currentWord);
 
             sendPlayerPoints(client);
+
+            // marking it as solved
+            for (int i = 0; i < currentWord.length(); i++) {
+                blanks[i] = currentWord.charAt(i);
+            }
 
             // mark turn taken for professor's turn system
             client.setTookTurn(true);
             sendTurnStatus(client, true);
 
-            // End round properly using professor's flow
+            strikes = 0;
             onRoundEnd();
             return;
         }
 
-        // INCORRECT GUESS
-        addStrike(client);
-
-        relay(null,
-                client.getClientName() + " guessed '" + guess +
-                        "' incorrectly! Strike " + strikesMap.get(client) +
-                        "/" + MAX_STRIKES);
+        // wrong guess
+        addStrike();
+        relay(null, client.getClientName() + " guessed incorrectly! Global strikes: " + strikes + "/" + MAX_STRIKES);
 
         sendPlayerPoints(client);
 
-        // Check if eliminated for this round
-        if (strikesMap.get(client) >= MAX_STRIKES) {
-            relay(null, client.getClientName() + " reached max strikes and is out for this round!");
-        }
-
-        // Mark turn complete (professor requirement)
+        // Mark turn complete
         client.setTookTurn(true);
         sendTurnStatus(client, true);
 
-        // End turn, NOT the round (professor drives the round)
+        // If global strikes exceeded, end round
+        if (strikes >= MAX_STRIKES) {
+            relay(null, "The word was: " + currentWord);
+            strikes = 0;
+            onRoundEnd();
+            return;
+        }
+
+        // End turn, NOT the round
         onTurnEnd();
     }
 }

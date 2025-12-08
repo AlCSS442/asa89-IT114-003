@@ -32,6 +32,7 @@ public enum PayloadType {
        LETTER,
        SKIP,
        POINTS,
-       TURN_NOTIFICATION,
+       SOLVE,
+       LETTER_GUESS,
        TIME;
 }

@@ -34,6 +34,7 @@ public enum Client {
     INSTANCE;
 
     {
+
         // statically initialize the client-side LoggerUtil
         LoggerUtil.LoggerConfig config = new LoggerUtil.LoggerConfig();
         config.setFileSizeLimit(2048 * 1024); // 2MB
@@ -135,6 +136,12 @@ public enum Client {
         sendToServer(payload);
     }
 
+    private void sendSkip() throws IOException {
+        Payload a = new Payload();
+        a.setPayloadType(PayloadType.SKIP);
+        sendToServer(a);
+    }
+
     /**
      * Controller for handling various text commands.
      * <p>
@@ -219,18 +226,34 @@ public enum Client {
                 // /leave)
                 sendRoomAction(text, RoomAction.LEAVE);
                 wasCommand = true;
-            } else if (text.startsWith(Command.GUESS.command)) {
-                text = text.replace(Command.GUESS.command, "").trim();
-                sendGuess(text);
+            } else if (text.startsWith(Command.LIST_ROOMS.command)) {
+                text = text.replace(Command.LIST_ROOMS.command, "").trim();
+
+                sendRoomAction(text, RoomAction.LIST);
+                wasCommand = true;
+            } else if (text.equalsIgnoreCase(Command.READY.command)) {
+                sendReady();
                 wasCommand = true;
             } else if (text.startsWith(Command.LETTER.command)) {
                 text = text.replace(Command.LETTER.command, "").trim();
+                if (text.length() != 1) {
+                    LoggerUtil.INSTANCE.warning(TextFX.colorize("Usage: /letter <single letter>", Color.RED));
+                    return true;
+                }
                 sendLetter(text);
                 wasCommand = true;
-            } else if (text.equalsIgnoreCase(Command.READY.command)) {
-                Payload payload = new Payload();
-                payload.setPayloadType(PayloadType.READY);
-                sendToServer(payload);
+
+            } else if (text.equalsIgnoreCase(Command.SKIP.command)) {
+                // tell the server the player wants to skip their turn
+                sendSkip();
+                wasCommand = true;
+            } else if (text.startsWith(Command.GUESS.command)) {
+                text = text.replace(Command.GUESS.command, "").trim();
+                if (text.isEmpty()) {
+                    LoggerUtil.INSTANCE.warning(TextFX.colorize("Usage: /guess <word>", Color.RED));
+                    return true;
+                }
+                sendGuess(text);
                 wasCommand = true;
             }
 
@@ -239,6 +262,28 @@ public enum Client {
     }
 
     // Start Send*() methods
+    private void sendDoTurn(String text) throws IOException {
+        // NOTE for now using ReadyPayload as it has the necessary properties
+        // An actual turn may include other data for your project
+        ReadyPayload rp = new ReadyPayload();
+        rp.setPayloadType(PayloadType.TURN);
+        rp.setReady(true); // <- technically not needed as we'll use the payload type as a trigger
+        rp.setMessage(text);
+        sendToServer(rp);
+    }
+
+    /**
+     * Sends the client's intent to be ready.
+     * Can also be used to toggle the ready state if coded on the server-side
+     * 
+     * @throws IOException
+     */
+    private void sendReady() throws IOException {
+        ReadyPayload rp = new ReadyPayload();
+        // rp.setReady(true); // <- technically not needed as we'll use the payload type
+        // as a trigger
+        sendToServer(rp);
+    }
 
     /**
      * Sends a room action to the server
@@ -259,6 +304,9 @@ public enum Client {
                 break;
             case RoomAction.LEAVE:
                 payload.setPayloadType(PayloadType.ROOM_LEAVE);
+                break;
+            case RoomAction.LIST:
+                payload.setPayloadType(PayloadType.ROOM_LIST);
                 break;
             default:
                 LoggerUtil.INSTANCE.warning(TextFX.colorize("Invalid room action", Color.RED));
@@ -376,7 +424,7 @@ public enum Client {
     private void processPayload(Payload payload) {
 
         switch (payload.getPayloadType()) {
-            case CLIENT_CONNECT:
+            case CLIENT_CONNECT:// unused
                 break;
             case CLIENT_ID:
                 processClientData(payload);
@@ -390,7 +438,7 @@ public enum Client {
             case REVERSE:
                 processReverse(payload);
                 break;
-            case ROOM_CREATE:
+            case ROOM_CREATE: // unused
                 break;
             case ROOM_JOIN:
                 processRoomAction(payload);
@@ -401,31 +449,53 @@ public enum Client {
             case SYNC_CLIENT:
                 processRoomAction(payload);
                 break;
-            case POINTS:
-                processPoints(payload);
+            case ROOM_LIST:
+                processRoomsList(payload);
                 break;
-            case READY:
-                processReady(payload);
+            case PayloadType.READY:
+                processReadyStatus(payload, false);
                 break;
-            case TURN_NOTIFICATION:
+            case PayloadType.SYNC_READY:
+                processReadyStatus(payload, true);
+                break;
+            case PayloadType.RESET_READY:
+                // note no data necessary as this is just a trigger
+                processResetReady();
+                break;
+            case PayloadType.PHASE:
+                processPhase(payload);
+                break;
+            case PayloadType.TURN:
+            case PayloadType.SYNC_TURN:
                 processTurn(payload);
                 break;
-            case PHASE:
-                System.out.println("[Client] Game phase: " + payload.getMessage());
+            case POINTS:
+                processPoints(payload);
+            case PayloadType.RESET_TURN:
+                // note no data necessary as this is just a trigger
+                processResetTurn();
+                break;
+            case LETTER_GUESS:
+                processLetterGuess(payload);
                 break;
 
-            case SYNC_READY:
-                System.out.println("[Client] Player ready status updated.");
-                break;
             default:
                 LoggerUtil.INSTANCE.warning(TextFX.colorize("Unhandled payload type", Color.YELLOW));
-                info("Received payload: type=" + payload.getPayloadType() + ", message=" + payload.getMessage());
-                ;
                 break;
 
         }
     }
 
+    private void onRoundStart() {
+        // Reset turn status for all clients
+        knownClients.values().forEach(user -> user.setTookTurn(false));
+
+        // Notify the user
+        System.out.println(TextFX.colorize("A new round has started!", Color.YELLOW));
+
+    }
+
+    // Start process*() methods
     private void processPoints(Payload payload) {
         System.out.println(TextFX.colorize(payload.getMessage(), Color.CYAN));
     }
@@ -434,13 +504,81 @@ public enum Client {
         System.out.println(TextFX.colorize(payload.getMessage(), Color.GREEN));
     }
 
+    private void processResetTurn() {
+        knownClients.values().forEach(cp -> cp.setTookTurn(false));
+        System.out.println("Turn status reset for everyone");
+    }
+
     private void processTurn(Payload payload) {
-        if (payload.getMessage() != null) {
-            System.out.println(TextFX.colorize(payload.getMessage(), Color.YELLOW));
+        // Note: For now assuming ReadyPayload (this may be changed later)
+        if (!(payload instanceof ReadyPayload)) {
+            error("Invalid payload subclass for processTurn");
+            return;
+        }
+        ReadyPayload rp = (ReadyPayload) payload;
+        if (!knownClients.containsKey(rp.getClientId())) {
+            LoggerUtil.INSTANCE.severe(String.format("Received turn status for client id %s who is not known",
+                    rp.getClientId()));
+            return;
+        }
+        User cp = knownClients.get(rp.getClientId());
+        cp.setTookTurn(rp.isReady());
+        if (payload.getPayloadType() != PayloadType.SYNC_TURN) {
+            String message = String.format("%s %s their turn", cp.getDisplayName(),
+                    cp.didTakeTurn() ? "took" : "reset");
+            LoggerUtil.INSTANCE.info(message);
+        }
+
+    }
+
+    private void processPhase(Payload payload) {
+        currentPhase = Enum.valueOf(Phase.class, payload.getMessage());
+        System.out.println(TextFX.colorize("Current phase is " + currentPhase.name(), Color.YELLOW));
+    }
+
+    private void processResetReady() {
+        knownClients.values().forEach(cp -> cp.setReady(false));
+        System.out.println("Ready status reset for everyone");
+    }
+
+    private void processReadyStatus(Payload payload, boolean isQuiet) {
+        if (!(payload instanceof ReadyPayload)) {
+            error("Invalid payload subclass for processRoomsList");
+            return;
+        }
+        ReadyPayload rp = (ReadyPayload) payload;
+        if (!knownClients.containsKey(rp.getClientId())) {
+            LoggerUtil.INSTANCE.severe(String.format("Received ready status [%s] for client id %s who is not known",
+                    rp.isReady() ? "ready" : "not ready", rp.getClientId()));
+            return;
+        }
+        User cp = knownClients.get(rp.getClientId());
+        cp.setReady(rp.isReady());
+        if (!isQuiet) {
+            System.out.println(
+                    String.format("%s is %s", cp.getDisplayName(),
+                            rp.isReady() ? "ready" : "not ready"));
         }
     }
 
-    // Start process*() methods
+    private void processRoomsList(Payload payload) {
+        if (!(payload instanceof RoomResultPayload)) {
+            error("Invalid payload subclass for processRoomsList");
+            return;
+        }
+        RoomResultPayload rrp = (RoomResultPayload) payload;
+        List<String> rooms = rrp.getRooms();
+        if (rooms == null || rooms.size() == 0) {
+            LoggerUtil.INSTANCE.warning(
+                    TextFX.colorize("No rooms found matching your query",
+                            Color.RED));
+            return;
+        }
+        LoggerUtil.INSTANCE.info(TextFX.colorize("Room Results:", Color.PURPLE));
+        LoggerUtil.INSTANCE.info(
+                String.join(System.lineSeparator(), rooms));
+    }
+
     private void processClientData(Payload payload) {
         if (myUser.getClientId() != Constants.DEFAULT_CLIENT_ID) {
             LoggerUtil.INSTANCE.warning(TextFX.colorize("Client ID already set, this shouldn't happen", Color.YELLOW));
@@ -462,7 +600,7 @@ public enum Client {
             if (disconnectedUser != null) {
                 LoggerUtil.INSTANCE
                         .info(TextFX.colorize(String.format("%s disconnected", disconnectedUser.getDisplayName()),
-                        Color.RED));
+                                Color.RED));
             }
         }
 
@@ -516,6 +654,19 @@ public enum Client {
         LoggerUtil.INSTANCE.info(TextFX.colorize(payload.getMessage(), Color.BLUE));
     }
 
+    private void processGuess(Payload payload) {
+        String guess = payload.getMessage();
+        long clientId = payload.getClientId();
+
+        String name = knownClients.containsKey(clientId) ? knownClients.get(clientId).getDisplayName() : "Unknown";
+
+        System.out.println(TextFX.colorize(String.format("%s guessed: %s", name, guess), Color.RED));
+    }
+
+    private void processLetterGuess(Payload payload) {
+        LoggerUtil.INSTANCE.info(TextFX.colorize(payload.getMessage(), Color.BLUE));
+    }
+
     private void processReverse(Payload payload) {
         LoggerUtil.INSTANCE.info(TextFX.colorize(payload.getMessage(), Color.PURPLE));
     }
@@ -540,6 +691,7 @@ public enum Client {
         LoggerUtil.INSTANCE.info("listenToInput thread stopped");
     }
 
+    
     /**
      * Closes the client connection and associated resources
      */

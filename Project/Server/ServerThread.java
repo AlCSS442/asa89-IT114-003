@@ -59,6 +59,14 @@ public class ServerThread extends BaseServerThread {
 
     }
 
+    protected boolean sendTurnAction(long clientId, String message) {
+        Payload payload = new Payload();
+        payload.setPayloadType(PayloadType.LETTER_GUESS);
+        payload.setMessage(message);
+        payload.setClientId(clientId);
+        return sendToClient(payload);
+    }
+
     // Start Send*() Methods
     // Start Send*() Methods
     public boolean sendResetTurnStatus() {
@@ -230,7 +238,7 @@ public class ServerThread extends BaseServerThread {
             case ROOM_CREATE:
                 currentRoom.handleCreateRoom(this, incoming.getMessage());
                 break;
-                
+
             case ROOM_JOIN:
                 currentRoom.handleJoinRoom(this, incoming.getMessage());
                 break;
@@ -268,6 +276,7 @@ public class ServerThread extends BaseServerThread {
                     gr.handleSkip(this);
                 }
                 break;
+            
             default:
                 LoggerUtil.INSTANCE.warning(TextFX.colorize("Unknown payload type received", Color.RED));
                 break;
@@ -280,9 +289,11 @@ public class ServerThread extends BaseServerThread {
         return user.getClientName();
     }
 
-    public void setClientName(String name) {
-        user.setClientName(name);
-    }
+    /*
+     * public void setClientName(String name) {
+     * user.setClientName(name);
+     * }
+     */
 
     public long getClientId() {
         return user.getClientId();
