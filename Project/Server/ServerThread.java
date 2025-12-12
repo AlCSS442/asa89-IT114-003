@@ -5,12 +5,15 @@ import java.util.List;
 import java.util.Objects;
 import java.util.function.Consumer;
 import Project.Common.TextFX.Color;
+import Project.Common.TimerPayload;
+import Project.Common.TimerType;
 import Project.Common.ConnectionPayload;
 import Project.Common.Constants;
 import Project.Common.LoggerUtil;
 import Project.Common.Payload;
 import Project.Common.PayloadType;
 import Project.Common.Phase;
+import Project.Common.PointsPayload;
 import Project.Common.ReadyPayload;
 import Project.Common.RoomAction;
 import Project.Common.RoomResultPayload;
@@ -60,7 +63,38 @@ public class ServerThread extends BaseServerThread {
     }
 
     // Start Send*() Methods
-    // Start Send*() Methods
+    /**
+     * Syncs a specific client's points
+     * 
+     * @param clientId
+     * @param points
+     * @return
+     */
+    public boolean sendPlayerPoints(long clientId, int points) {
+        PointsPayload rp = new PointsPayload();
+        rp.setPoints(points);
+        rp.setClientId(clientId);
+        return sendToClient(rp);
+    }
+
+    public boolean sendGameEvent(String str) {
+        return sendMessage(Constants.GAME_EVENT_CHANNEL, str);
+    }
+
+    /**
+     * Syncs the current time of a specific TimerType
+     * 
+     * @param timerType
+     * @param time
+     * @return
+     */
+    public boolean sendCurrentTime(TimerType timerType, int time) {
+        TimerPayload tp = new TimerPayload();
+        tp.setTime(time);
+        tp.setTimerType(timerType);
+        return sendToClient(tp);
+    }
+
     public boolean sendResetTurnStatus() {
         ReadyPayload rp = new ReadyPayload();
         rp.setPayloadType(PayloadType.RESET_TURN);
@@ -131,7 +165,7 @@ public class ServerThread extends BaseServerThread {
     }
 
     protected boolean sendResetUserList() {
-        return sendClientInfo(Constants.DEFAULT_CLIENT_ID, null, RoomAction.JOIN);
+        return sendClientInfo(Constants.DEFAULT_CLIENT_ID, null, null, RoomAction.JOIN);
     }
 
     /**
@@ -142,8 +176,8 @@ public class ServerThread extends BaseServerThread {
      * @param action     RoomAction of Join or Leave
      * @return true for successful send
      */
-    protected boolean sendClientInfo(long clientId, String clientName, RoomAction action) {
-        return sendClientInfo(clientId, clientName, action, false);
+    protected boolean sendClientInfo(long clientId, String clientName, String roomName, RoomAction action) {
+        return sendClientInfo(clientId, clientName, roomName, action, false);
     }
 
     /**
@@ -156,7 +190,8 @@ public class ServerThread extends BaseServerThread {
      *                   sync)
      * @return true for successful send
      */
-    protected boolean sendClientInfo(long clientId, String clientName, RoomAction action, boolean isSync) {
+    protected boolean sendClientInfo(long clientId, String clientName, String roomName, RoomAction action,
+            boolean isSync) {
         ConnectionPayload payload = new ConnectionPayload();
         switch (action) {
             case JOIN:
@@ -173,6 +208,7 @@ public class ServerThread extends BaseServerThread {
         }
         payload.setClientId(clientId);
         payload.setClientName(clientName);
+        payload.setMessage(roomName);
         return sendToClient(payload);
     }
 
@@ -213,6 +249,7 @@ public class ServerThread extends BaseServerThread {
         switch (incoming.getPayloadType()) {
             case CLIENT_CONNECT:
                 setClientName(((ConnectionPayload) incoming).getClientName().trim());
+
                 break;
 
             case DISCONNECT:
@@ -268,6 +305,15 @@ public class ServerThread extends BaseServerThread {
                     gr.handleSkip(this);
                 }
                 break;
+                case TURN:
+                // no data needed as the intent will be used as the trigger
+                try {
+                    // cast to GameRoom as the subclass will handle all Game logic
+                    ((GameRoom) currentRoom).handleTurnAction(this, incoming.getMessage());
+                } catch (Exception e) {
+                    sendMessage(Constants.DEFAULT_CLIENT_ID, "You must be in a GameRoom to do a turn");
+                }
+                break;
             default:
                 LoggerUtil.INSTANCE.warning(TextFX.colorize("Unknown payload type received", Color.RED));
                 break;
@@ -306,15 +352,24 @@ public class ServerThread extends BaseServerThread {
         this.user.setTookTurn(tookTurn);
     }
 
+    protected int getPoints() {
+        return this.user.getPoints();
+    }
+
+    protected void setPoints(int points) {
+        this.user.setPoints(points);
+    }
+
+    protected void changePoints(int points) {
+        this.user.setPoints(this.user.getPoints() + points);
+    }
+
     @Override
     protected void onInitialized() {
         // once receiving the desired client name the object is ready
         onInitializationComplete.accept(this);
     }
 
-    public int getPoints() {
-        return points;
-    }
 
     public void addPoints(int p) {
         points += p;
