@@ -33,5 +33,6 @@ public enum PayloadType {
        SKIP,
        POINTS,
        SOLVE,
+       LETTER_GUESS,
        TIME;
 }
