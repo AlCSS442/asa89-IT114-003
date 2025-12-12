@@ -7,6 +7,7 @@ import javax.swing.JPanel;
 
 import Project.Client.Client;
 import Project.Common.Phase;
+import java.awt.Dimension;
 
 public class PlayView extends JPanel {
     private final JPanel buttonPanel = new JPanel();
@@ -52,7 +53,9 @@ public class PlayView extends JPanel {
 
             buttonPanel.add(letterButton);
         }
-
+            
+            
+        buttonPanel.setMaximumSize(new Dimension(200, Integer.MAX_VALUE));
         this.add(buttonPanel);
     }
 

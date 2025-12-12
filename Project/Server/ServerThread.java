@@ -25,7 +25,7 @@ import Project.Common.TextFX;
 public class ServerThread extends BaseServerThread {
 
     private Consumer<ServerThread> onInitializationComplete; // callback to inform when this object is ready
-    private int points = 0;
+    
 
     /**
      * A wrapper method so we don't need to keep typing out the long/complex sysout
@@ -370,8 +370,4 @@ public class ServerThread extends BaseServerThread {
         onInitializationComplete.accept(this);
     }
 
-
-    public void addPoints(int p) {
-        points += p;
-    }
 }
