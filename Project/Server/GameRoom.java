@@ -622,7 +622,7 @@ public class GameRoom extends BaseGameRoom {
 
         if (correct) {
             int points = 1; // you can adjust points per letter
-            client.addPoints(points);
+            client.changePoints(points);
             sendGameEvent(client.getClientName() + " guessed letter '" + letter + "' correctly and earned " + points
                     + " points!");
         } else {
@@ -672,7 +672,7 @@ public class GameRoom extends BaseGameRoom {
                 if (b == '_')
                     missing++;
 
-            client.addPoints(missing);
+            client.changePoints(missing);
 
             sendGameEvent(client.getClientName() +
                     " guessed the correct word '" + currentWord +
